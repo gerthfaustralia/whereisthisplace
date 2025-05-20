@@ -29,6 +29,12 @@ poetry install
 poetry run uvicorn api.main:app --reload
 ```
 
+You can also start the backend using the helper script from the project root:
+
+```bash
+bash scripts/run_api.sh
+```
+
 ### Docker
 
 To build and run the backend in Docker:
@@ -50,6 +56,12 @@ cd api
 poetry install
 poetry run uvicorn api.main:app --reload
 poetry run pytest
+```
+
+Alternatively run the helper script:
+
+```bash
+bash scripts/run_api.sh
 ```
 
 ### Flutter App
