@@ -5,7 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1].parent
 sys.path.append(str(ROOT))
 
-from ml import retrieval, scene_classifier
+from ml import retrieval, scene_classifier, fuse
 
 
 def test_retrieval_search_returns_placeholder():
@@ -18,3 +18,12 @@ def test_scene_classifier_predict_topk_returns_placeholder():
     results = scene_classifier.predict_topk(b"data", k=1)
     assert isinstance(results, list)
     assert results == [("?", 0.33)]
+
+
+def test_fuse_returns_first_retrieval():
+    location, confidence = fuse.fuse(
+        scene=[("urban", 0.9)],
+        retrieval=[(1.0, 2.0, 0.8)],
+    )
+    assert location == (1.0, 2.0)
+    assert confidence == 0.8
