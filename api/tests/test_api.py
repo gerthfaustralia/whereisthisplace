@@ -1,9 +1,12 @@
 import sys
 from pathlib import Path
 from fastapi import FastAPI
+import asyncio
 
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.append(str(ROOT))
+API_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = API_ROOT.parent
+sys.path.append(str(API_ROOT))
+sys.path.append(str(PROJECT_ROOT))
 
 from api.main import app
 
@@ -12,3 +15,20 @@ def test_app_is_fastapi_instance():
     assert isinstance(app, FastAPI)
     route_paths = {route.path for route in app.router.routes}
     assert "/health" in route_paths
+    assert "/predict" in route_paths
+
+
+class DummyUploadFile:
+    def __init__(self, data: bytes):
+        self.data = data
+
+    async def read(self) -> bytes:
+        return self.data
+
+
+def test_predict_endpoint_returns_location():
+    from routes.predict import predict
+
+    file = DummyUploadFile(b"dummy")
+    data = asyncio.run(predict(photo=file))
+    assert data == {"latitude": 0.0, "longitude": 0.0, "confidence": 0.1}
