@@ -29,6 +29,8 @@ poetry install
 poetry run uvicorn api.main:app --reload
 ```
 
+`api/api/main.py` now adjusts `sys.path` automatically so the server can be launched from any directory.
+
 You can also start the backend using the helper script from the project root:
 
 ```bash
