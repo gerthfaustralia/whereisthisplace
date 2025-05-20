@@ -1,12 +1,13 @@
 import sys
 from pathlib import Path
-from fastapi import FastAPI
 import asyncio
 
 API_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = API_ROOT.parent
 sys.path.append(str(API_ROOT))
 sys.path.append(str(PROJECT_ROOT))
+
+from fastapi import FastAPI
 
 from api.main import app
 
@@ -32,3 +33,4 @@ def test_predict_endpoint_returns_location():
     file = DummyUploadFile(b"dummy")
     data = asyncio.run(predict(photo=file))
     assert data == {"latitude": 0.0, "longitude": 0.0, "confidence": 0.1}
+
