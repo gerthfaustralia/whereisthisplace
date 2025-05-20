@@ -37,8 +37,8 @@ dependencies:
   image_picker: ^1.0.4
   mapbox_gl:
       git:
-      url: https://github.com/tobrun/flutter-mapbox-gl.git
-      ref: master 
+        url: https://github.com/tobrun/flutter-mapbox-gl.git
+        ref: master 
   share_plus: ^7.2.1
 
 dev_dependencies:
