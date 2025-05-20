@@ -5,14 +5,15 @@ AI-powered photo geolocation. Upload an image and receive a predicted location w
 ## Architecture
 
 ```
-+---------------+       REST        +---------------+
-|   Flutter     | <--------------> |    FastAPI    |
-|   Mobile App  |                   |    Backend    |
-+---------------+                   +---------------+
-                                             |
-           +---------------------------------+----------------+
-           |             TorchServe (models) | PostGIS DB      |
-           +---------------------------------+----------------+
++---------------+      REST      +---------------+
+|   Flutter     | <----------->  |    FastAPI    |
+|   Mobile App  |                |    Backend    |
++---------------+                +---------------+
+         | gRPC                         | SQL
+         v                              v
+  +-------------+                +-------------+
+  | TorchServe  |                | PostGIS DB  |
+  +-------------+                +-------------+
 ```
 
 1. **Flutter app** uses Mapbox SDK for map tiles and sends photos to the backend.
@@ -36,6 +37,28 @@ To build and run the backend in Docker:
 docker build -t whereisthisplace-api api
 # Example run with port 8000
 docker run -p 8000:8000 whereisthisplace-api
+```
+
+## Local Development
+
+Run both the backend and Flutter app locally:
+
+### Backend
+
+```bash
+cd api
+poetry install
+poetry run uvicorn api.main:app --reload
+poetry run pytest
+```
+
+### Flutter App
+
+```bash
+cd app
+flutter pub get
+flutter run
+flutter test
 ```
 
 ## Contribution Rules
