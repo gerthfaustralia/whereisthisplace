@@ -34,3 +34,9 @@ def test_predict_endpoint_returns_location():
     data = asyncio.run(predict(photo=file))
     assert data == {"latitude": 0.0, "longitude": 0.0, "confidence": 0.1}
 
+
+def test_rate_limit_middleware_added():
+    from api.middleware import RateLimitMiddleware
+    middleware_classes = {m.cls for m in app.user_middleware}
+    assert RateLimitMiddleware in middleware_classes
+

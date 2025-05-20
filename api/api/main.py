@@ -8,7 +8,7 @@ if str(ROOT) not in sys.path:
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.predict import router as predict_router
-from api.middleware import EphemeralUploadMiddleware
+from api.middleware import EphemeralUploadMiddleware, RateLimitMiddleware
 
 app = FastAPI()
 
@@ -21,6 +21,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(EphemeralUploadMiddleware)
+app.add_middleware(RateLimitMiddleware)
 
 app.include_router(predict_router)
 
