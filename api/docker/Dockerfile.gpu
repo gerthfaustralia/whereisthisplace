@@ -10,11 +10,18 @@ ENV DEBIAN_FRONTEND=noninteractive \
     FAISS_OPT_LEVEL=avx2 \
     CMAKE_CUDA_ARCHITECTURES="75"
 
+# Explicitly switch to root user for system package installation
+USER root
+
 # 1. System deps for FAISS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
       build-essential cmake ninja-build git swig \
       libopenblas-dev ca-certificates wget && \
     rm -rf /var/lib/apt/lists/*
+
+# If the base image or your subsequent steps require running as a specific non-root user (e.g., 'torchserve'),
+# you might need to switch back to that user later. For example:
+# USER torchserve # Or whatever user the base image expects for runtime
 
 # 2. Copy application source
 WORKDIR /app
@@ -22,6 +29,8 @@ COPY api/ ./api
 COPY ml/  ./ml
 
 # 3. Python deps
+# Note: Running pip/poetry as root can sometimes be discouraged for security if not managed carefully.
+# However, for build steps inside a container, it's often necessary for global package availability or permissioned directories.
 RUN pip install --no-cache-dir poetry==1.8.3 && \
     poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
     pip install --no-cache-dir -r /dev/stdin && \
@@ -50,3 +59,10 @@ EXPOSE 8080 8081
 COPY api/docker/start.sh /start.sh
 RUN chmod +x /start.sh
 CMD ["/start.sh"]
+
+# If you switched to USER root and the original pytorch/torchserve image
+# expects to run as a different user (e.g., 'torchserve' or 'model-server')
+# for the CMD, you might need to switch back to that user before the CMD.
+# Check the base image documentation for its default runtime user.
+# Example:
+# USER model_server_user_from_base_image
