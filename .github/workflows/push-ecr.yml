@@ -1,0 +1,51 @@
+name: Build & Push backend to ECR
+
+on:
+  push:
+    branches: [ main ]
+    paths: [ "api/**", ".github/workflows/push-ecr.yml" ]
+  workflow_dispatch:
+
+permissions:
+  id-token: write         # for OIDC option
+  contents: read
+
+env:
+  IMAGE_NAME: ${{ secrets.ECR_REPO }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Set up QEMU (optional multi-arch)
+      uses: docker/setup-qemu-action@v3
+
+    - name: Configure AWS creds
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region:            ${{ secrets.AWS_REGION }}
+        # or:
+        # role-to-assume: arn:aws:iam::123456789012:role/where-github-oidc
+        # role-session-name: gha-ecr
+
+    - name: Login to ECR
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Build & push
+      uses: docker/build-push-action@v5
+      with:
+        context: ./api            # Dockerfile is api/docker/Dockerfile.gpu
+        file:   ./api/docker/Dockerfile.gpu
+        push:   true
+        tags: |
+          ${{ env.IMAGE_NAME }}:latest
+          ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
+    - name: Image digest
+      run: echo "Pushed ${{ env.IMAGE_NAME }}:latest"
