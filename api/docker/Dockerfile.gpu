@@ -1,32 +1,27 @@
 # ------------------------------------------------------------
 # WhereIsThisPlace – GPU backend image (TorchServe + FastAPI)
 # ------------------------------------------------------------
-# CUDA 12.1 base with TorchServe pre-installed
 FROM pytorch/torchserve:0.10.0-gpu
 
-# 1. Copy application source into the container
 WORKDIR /app
-COPY api/ ./api
-COPY ml/  ./ml            # helper modules (scene, retrieval, fuse)
 
-# 2. Install Python runtime deps exported from Poetry
-#    – Torch/CUDA already come with the base image
+# 1. Copy source
+COPY api/ ./api
+COPY ml/  ./ml
+# (models/ copy skipped until we actually have .mar)
+
+# 2. Install runtime deps
 RUN pip install --no-cache-dir poetry==1.8.3 && \
     poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
     pip install --no-cache-dir -r /dev/stdin && \
     pip install --no-cache-dir uvicorn[standard] faiss-gpu==1.7.4
 
-# 3. Optional: pre-load a .mar if one is present at build time
+# 3. TorchServe model-store (optional .mar present)
 RUN mkdir -p /model-store && \
-    if [ -f models/where-v1.mar ]; then \
-        cp models/where-v1.mar /model-store/; \
-    fi
+    if [ -f models/where-v1.mar ]; then cp models/where-v1.mar /model-store/; fi
 
-# 4. Expose ports
-#    8080 = TorchServe inference  •  8081 = FastAPI
 EXPOSE 8080 8081
 
-# 5. Entrypoint script – starts TorchServe then FastAPI
 COPY api/docker/start.sh /start.sh
 RUN chmod +x /start.sh
 CMD ["/start.sh"]
