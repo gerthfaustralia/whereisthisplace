@@ -15,41 +15,43 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Explicitly switch to root user for system package installation
 USER root
 
-# 1. System deps for FAISS build
+# 1. System dependencies for FAISS build and CMake installation
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential cmake ninja-build git swig \
-      libopenblas-dev ca-certificates wget && \
+      build-essential ninja-build git swig \
+      libopenblas-dev ca-certificates wget \
+      software-properties-common gnupg lsb-release && \
     rm -rf /var/lib/apt/lists/*
 
-# 2. Copy application source
+# 2. Install newer CMake (required for FAISS v1.7.4 - needs CMake 3.23.1+)
+RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | \
+    gpg --dearmor - | \
+    tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \
+    echo "deb https://apt.kitware.com/ubuntu/ $(lsb_release -cs) main" | \
+    tee /etc/apt/sources.list.d/kitware.list >/dev/null && \
+    apt-get update && \
+    apt-get install -y cmake && \
+    echo "Installed CMake version:" && cmake --version && \
+    rm -rf /var/lib/apt/lists/*
+
+# 3. Copy application source
 WORKDIR /app
 COPY api/ ./api
 COPY ml/  ./ml
 # If you have a 'models' directory in the build context for where-v1.mar, copy it too
 COPY models/ /app/models
 
-# 3. Python deps
+# 4. Install Python dependencies via Poetry
 RUN pip install --no-cache-dir poetry==1.8.3 && \
-    # Ensure the pyproject.toml in ./api is valid for poetry export
-    # If poetry export fails due to missing fields, ensure api/pyproject.toml is complete
+    # Export poetry dependencies to requirements.txt and install them
     poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
     pip install --no-cache-dir -r /dev/stdin && \
-    # Removed cmake and ninja from here, as they are installed by apt-get in step 1
+    # Install additional required packages
     pip install --no-cache-dir uvicorn[standard] pybind11
 
-# 4. Build & install FAISS-GPU (≈ 7-10 min)
-RUN apt-get update && \
-    apt-get install -y wget && \
-    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | \
-    gpg --dearmor - | \
-    tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \
-    echo 'deb https://apt.kitware.com/ubuntu/ focal main' | \
-    tee /etc/apt/sources.list.d/kitware.list >/dev/null && \
-    apt-get update && \
-    apt-get install -y cmake && \
-    cmake --version
-# Assuming CUDA is in /usr/local/cuda in the base image.
-RUN git clone --depth 1 --branch v${FAISS_VER} https://github.com/facebookresearch/faiss.git && \
+# 5. Build & install FAISS-GPU from source (≈ 7-10 min)
+# This step requires the newer CMake installed in step 2
+RUN echo "Building FAISS with CMake version:" && cmake --version && \
+    git clone --depth 1 --branch v${FAISS_VER} https://github.com/facebookresearch/faiss.git && \
     cmake -G Ninja -S faiss -B faiss/build \
         -DFAISS_ENABLE_GPU=${FAISS_ENABLE_GPU} \
         -DFAISS_ENABLE_PYTHON=ON \
@@ -58,23 +60,29 @@ RUN git clone --depth 1 --branch v${FAISS_VER} https://github.com/facebookresear
         -DCUDAToolkit_ROOT=/usr/local/cuda && \
     cmake --build faiss/build --target swigfaiss_avx2 faiss && \
     cmake --install faiss/build && \
-    # The FAISS Python bindings are typically installed from the build directory
     pip install faiss/build/faiss/python && \
-    rm -rf faiss
+    rm -rf faiss && \
+    echo "FAISS installation completed successfully"
 
-# 5. Optional model artefact (copied only if present)
-# This step assumes 'models/where-v1.mar' was copied to /app/models/ earlier
+# 6. Prepare model store directory
 RUN mkdir -p /model-store && \
-    if [ -f /app/models/where-v1.mar ]; then cp /app/models/where-v1.mar /model-store/; fi
+    if [ -f /app/models/where-v1.mar ]; then \
+        cp /app/models/where-v1.mar /model-store/ && \
+        echo "Model artifact copied to /model-store/"; \
+    else \
+        echo "No model artifact found at /app/models/where-v1.mar"; \
+    fi
 
-# 6. Expose ports (8080 TorchServe, 8081 FastAPI)
-EXPOSE 8080 8081
-
-# 7. Entrypoint
+# 7. Setup entrypoint script
 COPY api/docker/start.sh /start.sh
 RUN chmod +x /start.sh
+
+# 8. Expose ports (8080 for TorchServe, 8081 for FastAPI)
+EXPOSE 8080 8081
+
+# 9. Set default command
 CMD ["/start.sh"]
 
-# If the base image pytorch/torchserve expects to run its CMD as a specific non-root user,
-# you might need to switch to that user here. For example:
-# USER torchserve # Or the appropriate user for the base image
+# Note: If the pytorch/torchserve base image requires a specific user,
+# uncomment the following line:
+# USER torchserve
