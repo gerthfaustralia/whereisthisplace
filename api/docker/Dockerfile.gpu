@@ -2,7 +2,7 @@
 # WhereIsThisPlace – backend image (TorchServe + FastAPI)
 # ------------------------------------------------------------
 # CUDA 12 / T4-compatible base with TorchServe pre-installed
-FROM pytorch/torchserve:0.9.2-gpu
+FROM pytorch/torchserve:0.10.0-gpu
 
 # 1. Copy application source
 WORKDIR /app
