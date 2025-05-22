@@ -8,7 +8,9 @@ ARG FAISS_VER=1.7.4
 ENV DEBIAN_FRONTEND=noninteractive \
     FAISS_ENABLE_GPU=ON \
     FAISS_OPT_LEVEL=avx2 \
-    CMAKE_CUDA_ARCHITECTURES="75"
+    CMAKE_CUDA_ARCHITECTURES="75" \
+    PATH="/usr/local/cuda/bin:${PATH}" \
+    LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
 
 # Explicitly switch to root user for system package installation
 USER root
@@ -19,38 +21,41 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       libopenblas-dev ca-certificates wget && \
     rm -rf /var/lib/apt/lists/*
 
-# If the base image or your subsequent steps require running as a specific non-root user (e.g., 'torchserve'),
-# you might need to switch back to that user later. For example:
-# USER torchserve # Or whatever user the base image expects for runtime
-
 # 2. Copy application source
 WORKDIR /app
 COPY api/ ./api
 COPY ml/  ./ml
+# If you have a 'models' directory in the build context for where-v1.mar, copy it too
+COPY models/ /app/models
 
 # 3. Python deps
-# Note: Running pip/poetry as root can sometimes be discouraged for security if not managed carefully.
-# However, for build steps inside a container, it's often necessary for global package availability or permissioned directories.
 RUN pip install --no-cache-dir poetry==1.8.3 && \
+    # Ensure the pyproject.toml in ./api is valid for poetry export
+    # If poetry export fails due to missing fields, ensure api/pyproject.toml is complete
     poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
     pip install --no-cache-dir -r /dev/stdin && \
-    pip install --no-cache-dir uvicorn[standard] cmake ninja pybind11
+    # Removed cmake and ninja from here, as they are installed by apt-get in step 1
+    pip install --no-cache-dir uvicorn[standard] pybind11
 
 # 4. Build & install FAISS-GPU (≈ 7-10 min)
+# Assuming CUDA is in /usr/local/cuda in the base image.
 RUN git clone --depth 1 --branch v${FAISS_VER} https://github.com/facebookresearch/faiss.git && \
     cmake -G Ninja -S faiss -B faiss/build \
         -DFAISS_ENABLE_GPU=${FAISS_ENABLE_GPU} \
         -DFAISS_ENABLE_PYTHON=ON \
         -DFAISS_OPT_LEVEL=${FAISS_OPT_LEVEL} \
-        -DCMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES} && \
+        -DCMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES} \
+        -DCUDAToolkit_ROOT=/usr/local/cuda && \
     cmake --build faiss/build --target swigfaiss_avx2 faiss && \
     cmake --install faiss/build && \
-    pip install faiss/python && \
+    # The FAISS Python bindings are typically installed from the build directory
+    pip install faiss/build/faiss/python && \
     rm -rf faiss
 
 # 5. Optional model artefact (copied only if present)
+# This step assumes 'models/where-v1.mar' was copied to /app/models/ earlier
 RUN mkdir -p /model-store && \
-    if [ -f models/where-v1.mar ]; then cp models/where-v1.mar /model-store/; fi
+    if [ -f /app/models/where-v1.mar ]; then cp /app/models/where-v1.mar /model-store/; fi
 
 # 6. Expose ports (8080 TorchServe, 8081 FastAPI)
 EXPOSE 8080 8081
@@ -60,9 +65,6 @@ COPY api/docker/start.sh /start.sh
 RUN chmod +x /start.sh
 CMD ["/start.sh"]
 
-# If you switched to USER root and the original pytorch/torchserve image
-# expects to run as a different user (e.g., 'torchserve' or 'model-server')
-# for the CMD, you might need to switch back to that user before the CMD.
-# Check the base image documentation for its default runtime user.
-# Example:
-# USER model_server_user_from_base_image
+# If the base image pytorch/torchserve expects to run its CMD as a specific non-root user,
+# you might need to switch to that user here. For example:
+# USER torchserve # Or the appropriate user for the base image
