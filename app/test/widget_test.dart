@@ -17,6 +17,7 @@ import 'package:provider/provider.dart';
 import 'package:app/models/result_model.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
   testWidgets('Home screen has expected widgets', (WidgetTester tester) async {
