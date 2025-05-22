@@ -8,7 +8,7 @@ ARG FAISS_VER=1.7.4
 ENV DEBIAN_FRONTEND=noninteractive \
     FAISS_ENABLE_GPU=ON \
     FAISS_OPT_LEVEL=avx2 \
-    CMAKE_CUDA_ARCHITECTURES="75"      # T4 (g4dn); adjust if needed
+    CMAKE_CUDA_ARCHITECTURES="75"
 
 # 1. System deps for FAISS build
 RUN apt-get update && apt-get install -y --no-install-recommends \
