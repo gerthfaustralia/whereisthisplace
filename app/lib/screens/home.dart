@@ -3,12 +3,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
-import '../services/api.dart';
+import 'package:provider/provider.dart';
+import '../providers/geo_provider.dart';
 import 'result.dart';
 
 class HomeScreen extends StatefulWidget {
-  final Api api;
-  HomeScreen({super.key, required this.api});
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -39,7 +39,8 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _loading = true;
     });
-    final result = await widget.api.locate(File(_image!.path));
+    final geo = context.read<GeoProvider>();
+    final result = await geo.locate(File(_image!.path));
     if (!mounted) return;
     setState(() {
       _loading = false;

@@ -7,6 +7,8 @@ import 'dart:typed_data';
 import 'package:app/main.dart';
 import 'package:app/screens/home.dart';
 import 'package:app/services/api.dart';
+import 'package:app/providers/geo_provider.dart';
+import 'package:provider/provider.dart';
 import 'package:app/models/result_model.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:image_picker/image_picker.dart';
@@ -22,7 +24,12 @@ void main() {
   testWidgets('Navigate from home to result page', (WidgetTester tester) async {
     final key = GlobalKey();
     final api = _FakeApi();
-    await tester.pumpWidget(MaterialApp(home: HomeScreen(key: key, api: api)));
+    await tester.pumpWidget(
+      ChangeNotifierProvider(
+        create: (_) => GeoProvider(api),
+        child: MaterialApp(home: HomeScreen(key: key)),
+      ),
+    );
 
     final dummy = XFile.fromData(Uint8List(0), name: 'dummy.png');
     (key.currentState as dynamic).setImage(dummy);
