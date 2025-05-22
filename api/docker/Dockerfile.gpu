@@ -1,27 +1,76 @@
 # ------------------------------------------------------------
-# WhereIsThisPlace – GPU backend image (TorchServe + FastAPI)
+# WhereIsThisPlace – GPU backend (TorchServe + FastAPI + FAISS-GPU)
 # ------------------------------------------------------------
+# Base: TorchServe 0.10.0, CUDA 12.1, Python 3.10
 FROM pytorch/torchserve:0.10.0-gpu
 
-WORKDIR /app
+# Versions / build flags
+ARG FAISS_VER=1.7.4
+ENV DEBIAN_FRONTEND=noninteractive \
+    FAISS_ENABLE_GPU=ON \
+    FAISS_OPT_LEVEL=avx2 \
+    CMAKE_CUDA_ARCHITECTURES="75"   # NVIDIA T4 / g4dn
 
-# 1. Copy source
+# ------------------------------------------------------------
+# 1. System deps for building FAISS
+# ------------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential \
+      cmake \
+      ninja-build \
+      git \
+      ca-certificates \
+      swig \
+      libopenblas-dev \
+      wget && \
+    rm -rf /var/lib/apt/lists/*
+
+# ------------------------------------------------------------
+# 2. App source
+# ------------------------------------------------------------
+WORKDIR /app
 COPY api/ ./api
 COPY ml/  ./ml
-# (models/ copy skipped until we actually have .mar)
 
-# 2. Install runtime deps
+# ------------------------------------------------------------
+# 3. Python deps (from Poetry export)
+# ------------------------------------------------------------
 RUN pip install --no-cache-dir poetry==1.8.3 && \
     poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
     pip install --no-cache-dir -r /dev/stdin && \
-    pip install --no-cache-dir uvicorn[standard] faiss-gpu==1.7.4
+    pip install --no-cache-dir uvicorn[standard] cmake ninja pybind11
 
-# 3. TorchServe model-store (optional .mar present)
+# ------------------------------------------------------------
+# 4. Build & install FAISS-GPU from source (≈ 7–10 min)
+# ------------------------------------------------------------
+RUN git clone --depth 1 --branch v${FAISS_VER} https://github.com/facebookresearch/faiss.git && \
+    mkdir -p faiss/build && \
+    cmake -G Ninja -S faiss -B faiss/build \
+        -DFAISS_ENABLE_GPU=${FAISS_ENABLE_GPU} \
+        -DFAISS_ENABLE_PYTHON=ON \
+        -DFAISS_OPT_LEVEL=${FAISS_OPT_LEVEL} \
+        -DCMAKE_CUDA_ARCHITECTURES=${CMAKE_CUDA_ARCHITECTURES} && \
+    cmake --build faiss/build --target swigfaiss_avx2 faiss && \
+    cmake --install faiss/build && \
+    pip install faiss/python && \
+    rm -rf faiss
+
+# ------------------------------------------------------------
+# 5. Optional model artefact (copy if present at build time)
+# ------------------------------------------------------------
 RUN mkdir -p /model-store && \
-    if [ -f models/where-v1.mar ]; then cp models/where-v1.mar /model-store/; fi
+    if [ -f models/where-v1.mar ]; then \
+        cp models/where-v1.mar /model-store/; \
+    fi
 
-EXPOSE 8080 8081
+# ------------------------------------------------------------
+# 6. Ports
+# ------------------------------------------------------------
+EXPOSE 8080 8081          # 8080 = TorchServe, 8081 = FastAPI
 
+# ------------------------------------------------------------
+# 7. Entrypoint
+# ------------------------------------------------------------
 COPY api/docker/start.sh /start.sh
 RUN chmod +x /start.sh
 CMD ["/start.sh"]
