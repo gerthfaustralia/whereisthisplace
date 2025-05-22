@@ -8,7 +8,6 @@ plugins {
 android {
     namespace = "com.example.app"
     compileSdk = flutter.compileSdkVersion
-    // Force latest required NDK version for all plugins
     ndkVersion = "27.0.12077973"
 
     compileOptions {
