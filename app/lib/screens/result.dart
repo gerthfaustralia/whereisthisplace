@@ -3,6 +3,7 @@ import 'package:mapbox_gl/mapbox_gl.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../models/result_model.dart';
+import '../l10n/app_localizations.dart';
 
 /// Displays the location result on a Mapbox map with a share button.
 class ResultScreen extends StatelessWidget {
@@ -19,7 +20,7 @@ class ResultScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Result'),
+        title: Text(AppLocalizations.of(context).result),
         actions: [
           IconButton(
             key: const Key('share_button'),
