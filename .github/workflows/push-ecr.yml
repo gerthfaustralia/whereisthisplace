@@ -11,41 +11,27 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write            # for OIDC (or ignore if using access keys)
   contents: read
 
 env:
-  IMAGE_NAME: ${{ secrets.ECR_REPO }}        # e.g. 123456789012.dkr.ecr.eu-central-1.amazonaws.com/where-backend
-  AWS_REGION: ${{ secrets.AWS_REGION }}      # eu-central-1
+  AWS_REGION: eu-central-1                       # hard-code or keep as secret
+  IMAGE_NAME: ${{ secrets.ECR_REPO }}            # 123456789012.dkr.ecr.eu-central-1.amazonaws.com/where-backend
 
 jobs:
-  build-and-push:
+  build:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout sources
+    - name: Checkout
       uses: actions/checkout@v4
 
-    # ----- AWS auth (pick ONE of the blocks) --------------------------
-
-    # ---- A) OIDC role (preferred, no static keys) ----
-    - name: Configure AWS credentials (OIDC)
-      if: secrets.AWS_ROLE_TO_ASSUME != ''
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-        aws-region:     ${{ env.AWS_REGION }}
-
-    # ---- B) Classic access keys ----
-    - name: Configure AWS credentials (keys)
-      if: secrets.AWS_ACCESS_KEY_ID != ''
+    # ---- AWS credentials via access keys ----
+    - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region:            ${{ env.AWS_REGION }}
-
-    # -----------------------------------------------------------------
 
     - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v2
@@ -53,12 +39,12 @@ jobs:
     - name: Build & push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: .                                   # repo root, so COPY ml/ models/ works
-        file:   ./api/docker/Dockerfile.gpu          # Dockerfile path
+        context: .                                # repo root
+        file:   ./api/docker/Dockerfile.gpu
         push:   true
         tags: |
           ${{ env.IMAGE_NAME }}:latest
           ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-    - name: Print image digest
+    - name: Image digest
       run: echo "Pushed ${{ env.IMAGE_NAME }}:latest"
