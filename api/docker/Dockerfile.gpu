@@ -38,6 +38,16 @@ RUN pip install --no-cache-dir poetry==1.8.3 && \
     pip install --no-cache-dir uvicorn[standard] pybind11
 
 # 4. Build & install FAISS-GPU (≈ 7-10 min)
+RUN apt-get update && \
+    apt-get install -y wget && \
+    wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | \
+    gpg --dearmor - | \
+    tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null && \
+    echo 'deb https://apt.kitware.com/ubuntu/ focal main' | \
+    tee /etc/apt/sources.list.d/kitware.list >/dev/null && \
+    apt-get update && \
+    apt-get install -y cmake && \
+    cmake --version
 # Assuming CUDA is in /usr/local/cuda in the base image.
 RUN git clone --depth 1 --branch v${FAISS_VER} https://github.com/facebookresearch/faiss.git && \
     cmake -G Ninja -S faiss -B faiss/build \
