@@ -7,6 +7,7 @@ import 'package:provider/provider.dart';
 import '../providers/geo_provider.dart';
 import 'result.dart';
 import 'settings.dart';
+import '../l10n/app_localizations.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -67,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Home'),
+        title: Text(AppLocalizations.of(context).home),
         actions: [
           IconButton(
             key: const Key('settings_button'),
