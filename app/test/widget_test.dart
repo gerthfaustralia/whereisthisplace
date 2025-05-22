@@ -12,6 +12,7 @@ import 'package:app/providers/geo_provider.dart';
 import 'package:app/providers/locale_provider.dart';
 import 'package:app/providers/settings_provider.dart';
 import 'package:app/l10n/app_localizations.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'package:app/models/result_model.dart';
 import 'package:mapbox_gl/mapbox_gl.dart';
@@ -33,7 +34,16 @@ void main() {
     await tester.pumpWidget(
       ChangeNotifierProvider(
         create: (_) => GeoProvider(api),
-        child: MaterialApp(home: HomeScreen(key: key)),
+        child: MaterialApp(
+          localizationsDelegates: const [
+            AppLocalizationsDelegate(),
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: HomeScreen(key: key),
+        ),
       ),
     );
     await tester.pump();
