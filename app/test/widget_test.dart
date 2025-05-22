@@ -19,6 +19,7 @@ void main() {
     expect(find.text('Pick Image'), findsOneWidget);
     expect(find.text('Locate'), findsOneWidget);
     expect(find.text('No image selected'), findsOneWidget);
+    expect(find.byKey(const Key('settings_button')), findsOneWidget);
   });
 
   testWidgets('Navigate from home to result page', (WidgetTester tester) async {
