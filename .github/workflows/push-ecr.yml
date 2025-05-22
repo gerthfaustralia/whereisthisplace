@@ -1,51 +1,64 @@
-name: Build & Push backend to ECR
+name: Build & Push backend image to ECR
 
 on:
   push:
     branches: [ main ]
-    paths: [ "api/**", ".github/workflows/push-ecr.yml" ]
+    paths:
+      - "api/**"
+      - "ml/**"
+      - "models/**"
+      - ".github/workflows/push-ecr.yml"
   workflow_dispatch:
 
 permissions:
-  id-token: write         # for OIDC option
+  id-token: write            # for OIDC (or ignore if using access keys)
   contents: read
 
 env:
-  IMAGE_NAME: ${{ secrets.ECR_REPO }}
+  IMAGE_NAME: ${{ secrets.ECR_REPO }}        # e.g. 123456789012.dkr.ecr.eu-central-1.amazonaws.com/where-backend
+  AWS_REGION: ${{ secrets.AWS_REGION }}      # eu-central-1
 
 jobs:
-  build:
+  build-and-push:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout
+    - name: Checkout sources
       uses: actions/checkout@v4
 
-    - name: Set up QEMU (optional multi-arch)
-      uses: docker/setup-qemu-action@v3
+    # ----- AWS auth (pick ONE of the blocks) --------------------------
 
-    - name: Configure AWS creds
+    # ---- A) OIDC role (preferred, no static keys) ----
+    - name: Configure AWS credentials (OIDC)
+      if: secrets.AWS_ROLE_TO_ASSUME != ''
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+        aws-region:     ${{ env.AWS_REGION }}
+
+    # ---- B) Classic access keys ----
+    - name: Configure AWS credentials (keys)
+      if: secrets.AWS_ACCESS_KEY_ID != ''
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region:            ${{ secrets.AWS_REGION }}
-        # or:
-        # role-to-assume: arn:aws:iam::123456789012:role/where-github-oidc
-        # role-session-name: gha-ecr
+        aws-region:            ${{ env.AWS_REGION }}
 
-    - name: Login to ECR
+    # -----------------------------------------------------------------
+
+    - name: Login to Amazon ECR
       uses: aws-actions/amazon-ecr-login@v2
 
-    - name: Build & push
+    - name: Build & push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: ./api            # Dockerfile is api/docker/Dockerfile.gpu
-        file:   ./api/docker/Dockerfile.gpu
+        context: .                                   # repo root, so COPY ml/ models/ works
+        file:   ./api/docker/Dockerfile.gpu          # Dockerfile path
         push:   true
         tags: |
           ${{ env.IMAGE_NAME }}:latest
           ${{ env.IMAGE_NAME }}:${{ github.sha }}
 
-    - name: Image digest
+    - name: Print image digest
       run: echo "Pushed ${{ env.IMAGE_NAME }}:latest"
