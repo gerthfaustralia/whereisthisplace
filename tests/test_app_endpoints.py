@@ -1,10 +1,16 @@
+import sys
+from pathlib import Path
 import importlib
 import asyncio
 
 from fastapi.testclient import TestClient
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.append(str(ROOT / "api"))
+sys.path.append(str(ROOT))
+
 import api.main
-from api.routes.predict import predict_location
+from routes.predict import predict
 
 
 def get_fresh_client():
@@ -20,7 +26,23 @@ class DummyUploadFile:
         return self.data
 
 
+def test_health_endpoint_returns_200():
+    client = get_fresh_client()
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
 def test_predict_returns_expected_data():
     file = DummyUploadFile(b"dummy")
-    result = asyncio.run(predict_location(photo=file))
+    result = asyncio.run(predict(photo=file))
     assert result == {"latitude": 0.0, "longitude": 0.0, "confidence": 0.1}
+
+
+def test_rate_limit_returns_429_after_limit_exceeded():
+    client = get_fresh_client()
+    for _ in range(10):
+        resp = client.get("/health")
+        assert resp.status_code == 200
+    resp = client.get("/health")
+    assert resp.status_code == 429
