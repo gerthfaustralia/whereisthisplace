@@ -25,7 +25,16 @@ COPY ml/  ./ml
 # If you have a 'models' directory in the build context for where-v1.mar, copy it too
 COPY models/ /app/models
 
-# 3. Install Python dependencies via Poetry (using the working approach)
+# 3. Fix the import issue in the source code
+RUN if [ -f /app/api/api/main.py ]; then \
+        sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/api/main.py; \
+        echo "Fixed import in api/api/main.py"; \
+    elif [ -f /app/api/main.py ]; then \
+        sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/main.py; \
+        echo "Fixed import in api/main.py"; \
+    fi
+
+# 4. Install Python dependencies via Poetry (using the working approach)
 RUN pip install --no-cache-dir poetry==1.8.3 && \
     # Export poetry dependencies to requirements.txt and install them
     poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
@@ -33,11 +42,11 @@ RUN pip install --no-cache-dir poetry==1.8.3 && \
     # Install additional required packages including FastAPI explicitly
     pip install --no-cache-dir fastapi==0.111.0 'pydantic>=2.7' uvicorn[standard]
 
-# 4. Install pre-built FAISS-GPU (much faster and more reliable)
+# 5. Install pre-built FAISS-GPU (much faster and more reliable)
 RUN pip install --no-cache-dir faiss-gpu && \
     echo "FAISS-GPU installation completed successfully"
 
-# 5. Prepare model store directory
+# 6. Prepare model store directory
 RUN mkdir -p /model-store && \
     if [ -f /app/models/where-v1.mar ]; then \
         cp /app/models/where-v1.mar /model-store/ && \
@@ -46,7 +55,7 @@ RUN mkdir -p /model-store && \
         echo "WARNING: No model artifact found at /app/models/where-v1.mar"; \
     fi
 
-# 6. Create startup script (inline for better control)
+# 7. Create startup script (inline for better control)
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
@@ -81,11 +90,11 @@ else\n\
 fi\n\
 ' > /start.sh && chmod +x /start.sh
 
-# 7. Expose ports
+# 8. Expose ports
 # 8080: TorchServe inference API
 # 8081: TorchServe management API (internal)
 # 8000: FastAPI application
 EXPOSE 8080 8000
 
-# 8. Set default command
+# 9. Set default command
 CMD ["/start.sh"]
