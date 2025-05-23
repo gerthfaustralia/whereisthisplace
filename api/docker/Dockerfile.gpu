@@ -25,6 +25,15 @@ COPY ml/  ./ml
 # If you have a 'models' directory in the build context for where-v1.mar, copy it too
 COPY models/ /app/models
 
+# 3. Fix the import issue in the source code
+RUN if [ -f /app/api/api/main.py ]; then \
+        sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/api/main.py; \
+        echo "Fixed import in api/api/main.py"; \
+    elif [ -f /app/api/main.py ]; then \
+        sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/main.py; \
+        echo "Fixed import in api/main.py"; \
+    fi
+
 # 4. Install Python dependencies via Poetry (using the working approach)
 RUN pip install --no-cache-dir poetry==1.8.3 && \
     # Export poetry dependencies to requirements.txt and install them
@@ -46,12 +55,46 @@ RUN mkdir -p /model-store && \
         echo "WARNING: No model artifact found at /app/models/where-v1.mar"; \
     fi
 
-# 7. Expose ports
+# 7. Create startup script (inline for better control)
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "Starting TorchServe..."\n\
+torchserve --start --model-store /model-store --ncs\n\
+\n\
+echo "Waiting for TorchServe to start..."\n\
+sleep 10\n\
+\n\
+# Check if model needs to be registered\n\
+if [ -f /model-store/where-v1.mar ]; then\n\
+    echo "Checking if model needs to be registered..."\n\
+    if ! curl -s http://localhost:8081/models | grep -q "where"; then\n\
+        echo "Registering where model..."\n\
+        curl -X POST "http://localhost:8081/models?url=where-v1.mar&model_name=where&initial_workers=1"\n\
+    fi\n\
+fi\n\
+\n\
+echo "Starting FastAPI application..."\n\
+cd /app\n\
+# Try different module paths\n\
+if [ -f "api/main.py" ]; then\n\
+    echo "Starting with api.main:app"\n\
+    exec uvicorn api.main:app --host 0.0.0.0 --port 8000\n\
+elif [ -f "api/api/main.py" ]; then\n\
+    echo "Starting with api.api.main:app"\n\
+    exec uvicorn api.api.main:app --host 0.0.0.0 --port 8000\n\
+else\n\
+    echo "ERROR: Could not find FastAPI main module!"\n\
+    find /app -name "main.py" -type f\n\
+    exit 1\n\
+fi\n\
+' > /start.sh && chmod +x /start.sh
+
+# 8. Expose ports
+# 8080: TorchServe inference API
+# 8081: TorchServe management API (internal)
+# 8000: FastAPI application
 EXPOSE 8080 8000
 
-# Remove any sed commands that fix imports
-# The imports should now work correctly from source
-
-# When starting the API in Docker:
-WORKDIR /app
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# 9. Set default command
+CMD ["/start.sh"]
