@@ -12,8 +12,9 @@ uvicorn = {extras = ["standard"], version = "^0.30.0"}
 pydantic = "^2.7"
 torch = "^2.0.0"
 torchvision = "^0.15.0"
-faiss-gpu = "^1.7.3"
-# Add other dependencies as needed
+# Use faiss-cpu for development (faiss-gpu is Linux-only)
+faiss-cpu = "^1.7.3"
+# Add other dependencies...
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
@@ -24,16 +25,3 @@ ruff = "^0.4.0"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-pythonpath = ["."]
-
-[tool.mypy]
-python_version = "3.9"
-warn_return_any = true
-warn_unused_configs = true
-
-[tool.ruff]
-line-length = 100
-target-version = "py39"
