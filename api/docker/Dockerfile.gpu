@@ -6,7 +6,8 @@ FROM pytorch/torchserve:0.10.0-gpu
 # Build-time variables & environment
 ENV DEBIAN_FRONTEND=noninteractive \
     PATH="/usr/local/cuda/bin:${PATH}" \
-    LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+    LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}" \
+    PYTHONPATH="/app:${PYTHONPATH}"
 
 # Explicitly switch to root user for system package installation
 USER root
@@ -21,16 +22,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 COPY api/ ./api
 COPY ml/  ./ml
+
 # If you have a 'models' directory in the build context for where-v1.mar, copy it too
 COPY models/ /app/models
 
-# 3. Install Python dependencies via Poetry
+# 3. Install Python dependencies
 RUN pip install --no-cache-dir poetry==1.8.3 && \
     # Export poetry dependencies to requirements.txt and install them
-    poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
-    pip install --no-cache-dir -r /dev/stdin && \
-    # Install additional required packages
-    pip install --no-cache-dir uvicorn[standard]
+    cd /app/api && \
+    poetry export --without-hashes --only main -f requirements.txt -o requirements.txt && \
+    pip install --no-cache-dir -r requirements.txt && \
+    # Explicitly install FastAPI and uvicorn to ensure they're available
+    pip install --no-cache-dir fastapi==0.111.0 'pydantic>=2.7' uvicorn[standard] && \
+    # Clean up
+    rm -f requirements.txt
 
 # 4. Install pre-built FAISS-GPU (much faster and more reliable)
 RUN pip install --no-cache-dir faiss-gpu && \
@@ -42,19 +47,41 @@ RUN mkdir -p /model-store && \
         cp /app/models/where-v1.mar /model-store/ && \
         echo "Model artifact copied to /model-store/"; \
     else \
-        echo "No model artifact found at /app/models/where-v1.mar"; \
+        echo "WARNING: No model artifact found at /app/models/where-v1.mar"; \
     fi
 
-# 6. Setup entrypoint script
-COPY api/docker/start.sh /start.sh
-RUN chmod +x /start.sh
+# 6. Create startup script directly (more reliable than copying)
+RUN echo '#!/bin/bash\n\
+set -e\n\
+\n\
+echo "Starting TorchServe..."\n\
+torchserve --start --model-store /model-store --ncs\n\
+\n\
+echo "Waiting for TorchServe to start..."\n\
+sleep 10\n\
+\n\
+# Register the model if it exists and is not already registered\n\
+if [ -f /model-store/where-v1.mar ]; then\n\
+    echo "Checking if model needs to be registered..."\n\
+    if ! curl -s http://localhost:8081/models | grep -q "where"; then\n\
+        echo "Registering where model..."\n\
+        curl -X POST "http://localhost:8081/models?url=where-v1.mar&model_name=where&initial_workers=1"\n\
+    fi\n\
+fi\n\
+\n\
+echo "Starting FastAPI application..."\n\
+cd /app\n\
+exec uvicorn api.main:app --host 0.0.0.0 --port 8000\n\
+' > /start.sh && chmod +x /start.sh
 
-# 7. Expose ports (8080 for TorchServe, 8081 for FastAPI)
-EXPOSE 8080 8081
+# 7. Expose ports
+# 8080: TorchServe inference API
+# 8081: TorchServe management API (internal use)
+# 8000: FastAPI application
+EXPOSE 8080 8000
 
-# 8. Set default command
+# 8. Set working directory for the app
+WORKDIR /app
+
+# 9. Set default command
 CMD ["/start.sh"]
-
-# Note: If the pytorch/torchserve base image requires a specific user,
-# uncomment the following line:
-# USER torchserve
