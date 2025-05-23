@@ -1,36 +1,26 @@
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.append(str(ROOT))
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routes.predict import router as predict_router
-from api.middleware import EphemeralUploadMiddleware, RateLimitMiddleware
 
-app = FastAPI()
+from .routes.predict import router as predict_router
+from .core.config import settings
 
-# Allow all origins for now. The Flutter app will run on a different port
-# during development, so permissive CORS simplifies local testing.
+app = FastAPI(
+    title="WhereIsThisPlace API",
+    version="0.1.0",
+    description="AI-powered photo geolocation",
+)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(EphemeralUploadMiddleware)
-app.add_middleware(RateLimitMiddleware)
 
-app.include_router(predict_router)
+app.include_router(predict_router, prefix="/api/v1/predict", tags=["predict"])
+
 
 @app.get("/")
-def read_root():
-    return {"message": "Hello World"}
-
-
-@app.get("/health")
-def health_check():
-    """Simple health check endpoint used by deployment probes."""
-    return {"status": "ok"}
+async def root() -> dict[str, str]:
+    return {"message": "WhereIsThisPlace API"}

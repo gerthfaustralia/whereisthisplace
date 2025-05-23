@@ -1,23 +1,39 @@
-[project]
-name = "api"
-version = "0.1.0"
-description = ""
-authors = [
-    {name = "Your Name",email = "you@example.com"}
-]
-readme = "README.md"
-requires-python = ">=3.12"
-dependencies = [
-    "fastapi (>=0.115.12,<0.116.0)",
-    "uvicorn (>=0.34.2,<0.35.0)",
-    "httpx (>=0.28.1,<0.29.0)",
-]
-
 [tool.poetry]
+name = "whereisthisplace-api"
+version = "0.1.0"
+description = "AI-powered photo geolocation API"
+authors = ["Your Name <your.email@example.com>"]
+packages = [{include = "api"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.111.0"
+uvicorn = {extras = ["standard"], version = "^0.30.0"}
+pydantic = "^2.7"
+torch = "^2.0.0"
+torchvision = "^0.15.0"
+faiss-gpu = "^1.7.3"
+# Add other dependencies as needed
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.5"
+pytest = "^8.0.0"
+black = "^24.0.0"
+mypy = "^1.0.0"
+ruff = "^0.4.0"
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
