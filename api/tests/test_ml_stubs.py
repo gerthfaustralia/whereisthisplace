@@ -1,10 +1,3 @@
-import sys
-from pathlib import Path
-
-# Ensure the project root is on the path so we can import the ml package
-ROOT = Path(__file__).resolve().parents[1].parent
-sys.path.append(str(ROOT))
-
 from ml import retrieval, scene_classifier, fuse
 
 
