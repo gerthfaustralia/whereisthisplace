@@ -12,12 +12,15 @@ class ResultScreen extends StatelessWidget {
 
   void _share() {
     final text =
-        'Location: \${result.latitude}, \${result.longitude} (confidence \${(result.confidence * 100).toStringAsFixed(1)}%)';
+        'Location: ${result.latitude}, ${result.longitude} (confidence ${(result.confidence * 100).toStringAsFixed(1)}%)';
     Share.share(text);
   }
 
   @override
   Widget build(BuildContext context) {
+    // Debug print to check coordinates
+    print('ResultScreen - Latitude: ${result.latitude}, Longitude: ${result.longitude}');
+    
     return Scaffold(
       appBar: AppBar(
         title: Text(AppLocalizations.of(context).result),
@@ -39,9 +42,18 @@ class ResultScreen extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.all(16),
-            child: Text(
-              'Confidence: ${(result.confidence * 100).toStringAsFixed(1)}%',
-              key: const Key('confidence_text'),
+            child: Column(
+              children: [
+                Text(
+                  'Confidence: ${(result.confidence * 100).toStringAsFixed(1)}%',
+                  key: const Key('confidence_text'),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Coordinates: ${result.latitude.toStringAsFixed(6)}, ${result.longitude.toStringAsFixed(6)}',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ),
           ),
         ],
@@ -49,4 +61,3 @@ class ResultScreen extends StatelessWidget {
     );
   }
 }
-
