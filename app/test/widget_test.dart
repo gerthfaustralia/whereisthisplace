@@ -21,7 +21,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 
 void main() {
   testWidgets('Home screen has expected widgets', (WidgetTester tester) async {
-    await tester.pumpWidget(const MyApp());
+    await tester.pumpWidget(const WhereApp());
     await tester.pump();
     expect(find.text('Pick Image'), findsOneWidget);
     expect(find.text('Locate'), findsOneWidget);
