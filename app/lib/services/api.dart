@@ -22,7 +22,7 @@ class Api {
   static Future<ResultModel> locate(File image) async {
     final uri = Uri.parse('$_baseUrl/predict');
     final req = http.MultipartRequest('POST', uri)
-      ..files.add(await http.MultipartFile.fromPath('file', image.path));
+      ..files.add(await http.MultipartFile.fromPath('photo', image.path));
 
     final streamed = await req.send();
     final resp = await http.Response.fromStream(streamed);
