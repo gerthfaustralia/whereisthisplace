@@ -5,7 +5,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:app/main.dart';
-import 'package:app/screens/home.dart';
+import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/settings.dart';
 import 'package:app/services/api.dart';
 import 'package:app/providers/geo_provider.dart';
