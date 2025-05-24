@@ -61,5 +61,29 @@
 		<string>_dartobservatory._udp</string>
 	</array>
 	<!-- *********************************************************** -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>This app needs access to location to show your position on the map.</string>
+
+	<!-- Optional: If you also want always-on location -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs access to location to show your position on the map.</string>
+
+	<!-- Camera Permission (Already added if you can take photos) -->
+	<key>NSCameraUsageDescription</key>
+	<string>This app needs camera access to take photos</string>
+
+	<!-- Photo Library Permission (Already added if you can select photos) -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app needs photo library access to select photos</string>
+
+	<!-- Network Permission (For debugging) -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>This app needs to find local network devices for debugging purposes.</string>
+	<key>NSBonjourServices</key>
+        <array>
+                <string>_dartobservatory._tcp</string>
+        </array>
+        <key>MBXAccessToken</key>
+        <string>pk.eyJ1IjoiZmVsaXhncnVlbmVyIiwiYSI6ImNtYXR2dXIwaDB2YjEyanNod2duemdjMnoifQ._ZPv79B7Ud5CfUSdbBn3Ww</string>
 </dict>
 </plist>

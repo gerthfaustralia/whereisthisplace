@@ -1,38 +1,42 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'screens/home.dart';
-import 'services/api.dart';
+
 import 'providers/geo_provider.dart';
-import 'providers/settings_provider.dart';
 import 'providers/locale_provider.dart';
+import 'providers/settings_provider.dart';
+import 'screens/home_screen.dart';      // ← this is already in the repo
 import 'l10n/app_localizations.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
-void main() {
-  runApp(const MyApp());
-}
+void main() => runApp(const WhereApp());
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class WhereApp extends StatelessWidget {
+  const WhereApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        ChangeNotifierProvider(create: (_) => GeoProvider(Api())),
+        ChangeNotifierProvider(create: (_) => GeoProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
       ],
-      child: Builder(
-        key: const Key('app_builder'),
-        builder: (context) {
-          final locale = context.watch<LocaleProvider>().locale;
+      child: Consumer<LocaleProvider>(
+        builder: (context, localeProvider, _) {
           return MaterialApp(
-            locale: locale,
+            title: 'AI Photo Geolocation',
+            debugShowCheckedModeBanner: false,
+            locale: localeProvider.locale,
             supportedLocales: AppLocalizations.supportedLocales,
-            localizationsDelegates: const [AppLocalizationsDelegate()],
-            title: 'Flutter Demo',
+            localizationsDelegates: const [
+              AppLocalizationsDelegate(),
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+              GlobalCupertinoLocalizations.delegate,
+            ],
             theme: ThemeData(
-              colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
+              colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+              useMaterial3: true,
             ),
             home: const HomeScreen(),
           );

@@ -1,51 +1,44 @@
-// API service for WhereIsThisPlace Flutter app
-
-import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' show File, Platform;
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:http/http.dart' as http;
 
-import 'package:flutter/foundation.dart';
+import 'package:app/models/result_model.dart';   // ← use the existing model
 
-import '../models/result_model.dart';
+/* ---------- endpoint selection ---------- */
+const _prodHost = '18.184.4.124';
+const _androidEmulatorHost = '10.0.2.2';
 
+final String _baseUrl = (() {
+  if (!kDebugMode) return 'http://$_prodHost:8000';
+  return Platform.isAndroid ? 'http://$_androidEmulatorHost:8000'
+                            : 'http://$_prodHost:8000';
+})();
+
+/* ---------- API service ---------- */
 class Api {
-  final HttpClient _client = HttpClient();
+  Api._();
 
-  String get _baseUrl {
-    if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:8000';
+  static Future<ResultModel> locate(File image) async {
+    final uri = Uri.parse('$_baseUrl/predict');
+    final req = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath('photo', image.path));
+
+    final streamed = await req.send();
+    final resp = await http.Response.fromStream(streamed);
+
+    if (resp.statusCode != 200) {
+      throw Exception('API error ${resp.statusCode}: ${resp.body}');
     }
-    return 'http://localhost:8000';
+    return ResultModel.fromJson(jsonDecode(resp.body));
   }
 
-  /// Uploads [file] to the prediction endpoint and returns the location result.
-  Future<ResultModel> locate(File file) async {
-    final uri = Uri.parse('$_baseUrl/predict');
-    final request = await _client.postUrl(uri);
-
-    final boundary = '----dart-http-boundary-${DateTime.now().millisecondsSinceEpoch}';
-    request.headers.contentType =
-        ContentType('multipart', 'form-data', parameters: {'boundary': boundary});
-
-    // Build multipart body
-    final fileBytes = await file.readAsBytes();
-    final filename = file.path.split(Platform.pathSeparator).last;
-    final header =
-        '--$boundary\r\nContent-Disposition: form-data; name="photo"; filename="$filename"\r\nContent-Type: application/octet-stream\r\n\r\n';
-    final footer = '\r\n--$boundary--\r\n';
-
-    request.contentLength =
-        header.length + fileBytes.length + footer.length;
-
-    request.write(header);
-    request.add(fileBytes);
-    request.write(footer);
-
-    final response = await request.close();
-    final body = await response.transform(utf8.decoder).join();
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return ResultModel.fromJson(jsonDecode(body) as Map<String, dynamic>);
+  static Future<bool> isHealthy() async {
+    try {
+      final resp = await http.get(Uri.parse('$_baseUrl/health'));
+      return resp.statusCode == 200;
+    } catch (_) {
+      return false;
     }
-    throw HttpException('Failed to locate: ${response.statusCode} $body');
   }
 }
