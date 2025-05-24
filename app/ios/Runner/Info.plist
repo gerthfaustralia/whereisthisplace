@@ -80,8 +80,10 @@
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>This app needs to find local network devices for debugging purposes.</string>
 	<key>NSBonjourServices</key>
-	<array>
-		<string>_dartobservatory._tcp</string>
-	</array>
+        <array>
+                <string>_dartobservatory._tcp</string>
+        </array>
+        <key>MBXAccessToken</key>
+        <string>pk.YOUR_PUBLIC_TOKEN_HERE</string>
 </dict>
 </plist>
