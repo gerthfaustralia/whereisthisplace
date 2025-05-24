@@ -1,5 +1,7 @@
 PODS:
   - Flutter (1.0.0)
+  - flutter_native_splash (2.4.3):
+    - Flutter
   - image_picker_ios (0.0.1):
     - Flutter
   - Mapbox-iOS-SDK (6.4.1):
@@ -16,13 +18,18 @@ PODS:
     - FlutterMacOS
   - share_plus (0.0.1):
     - Flutter
+  - shared_preferences_foundation (0.0.1):
+    - Flutter
+    - FlutterMacOS
 
 DEPENDENCIES:
   - Flutter (from `Flutter`)
+  - flutter_native_splash (from `.symlinks/plugins/flutter_native_splash/ios`)
   - image_picker_ios (from `.symlinks/plugins/image_picker_ios/ios`)
   - mapbox_gl (from `.symlinks/plugins/mapbox_gl/ios`)
   - path_provider_foundation (from `.symlinks/plugins/path_provider_foundation/darwin`)
   - share_plus (from `.symlinks/plugins/share_plus/ios`)
+  - shared_preferences_foundation (from `.symlinks/plugins/shared_preferences_foundation/darwin`)
 
 SPEC REPOS:
   trunk:
@@ -33,6 +40,8 @@ SPEC REPOS:
 EXTERNAL SOURCES:
   Flutter:
     :path: Flutter
+  flutter_native_splash:
+    :path: ".symlinks/plugins/flutter_native_splash/ios"
   image_picker_ios:
     :path: ".symlinks/plugins/image_picker_ios/ios"
   mapbox_gl:
@@ -41,9 +50,12 @@ EXTERNAL SOURCES:
     :path: ".symlinks/plugins/path_provider_foundation/darwin"
   share_plus:
     :path: ".symlinks/plugins/share_plus/ios"
+  shared_preferences_foundation:
+    :path: ".symlinks/plugins/shared_preferences_foundation/darwin"
 
 SPEC CHECKSUMS:
   Flutter: e0871f40cf51350855a761d2e70bf5af5b9b5de7
+  flutter_native_splash: df59bb2e1421aa0282cb2e95618af4dcb0c56c29
   image_picker_ios: c560581cceedb403a6ff17f2f816d7fea1421fc1
   Mapbox-iOS-SDK: f870f83cbdc7aa4a74afcee143aafb0dae390c82
   mapbox_gl: 33c5ab6306cbfa72289bb3606d2cd2e8baee9ff0
@@ -51,6 +63,7 @@ SPEC CHECKSUMS:
   MapboxMobileEvents: 5a172cc9bbf8ac0e45ba86095cbee685ede248cc
   path_provider_foundation: 2b6b4c569c0fb62ec74538f866245ac84301af46
   share_plus: c3fef564749587fc939ef86ffb283ceac0baf9f5
+  shared_preferences_foundation: fcdcbc04712aee1108ac7fda236f363274528f78
 
 PODFILE CHECKSUM: e6e3ea67ee316bfc8d792f4082737a124dd31532
 
