@@ -18,11 +18,13 @@ class MapWidget extends StatefulWidget {
 class _MapWidgetState extends State<MapWidget> {
   mapbox.MapboxMap? mapboxMap;
 
-  _onMapCreated(mapbox.MapboxMap mapboxMap) {
+  _onMapCreated(mapbox.MapboxMap mapboxMap) async {
     this.mapboxMap = mapboxMap;
     
-    // Add a marker at the location
-    mapboxMap.annotations.createPointAnnotationManager().then((pointAnnotationManager) async {
+    // Add a red marker at the predicted location
+    try {
+      final pointAnnotationManager = await mapboxMap.annotations.createPointAnnotationManager();
+      
       final options = <mapbox.PointAnnotationOptions>[
         mapbox.PointAnnotationOptions(
           geometry: mapbox.Point(
@@ -31,23 +33,30 @@ class _MapWidgetState extends State<MapWidget> {
               widget.latitude,
             ),
           ),
+          iconSize: 1.5,
+          iconColor: Colors.red.value,
         ),
       ];
+      
       await pointAnnotationManager.createMulti(options);
-    });
+    } catch (e) {
+      print('Error adding marker: $e');
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     // IMPORTANT: Replace with your PUBLIC Mapbox token (starts with pk.)
-    const String ACCESS_TOKEN = 'YOUR_PUBLIC_MAPBOX_TOKEN_HERE';
+    const String MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiZmVsaXhncnVlbmVyIiwiYSI6ImNtYXR2dXIwaDB2YjEyanNod2duemdjMnoifQ._ZPv79B7Ud5CfUSdbBn3Ww';
     
     // Set the access token
-    mapbox.MapboxOptions.setAccessToken(ACCESS_TOKEN);
+    mapbox.MapboxOptions.setAccessToken(MAPBOX_ACCESS_TOKEN);
     
     return mapbox.MapWidget(
       key: const ValueKey("mapWidget"),
-      resourceOptions: mapbox.ResourceOptions(accessToken: ACCESS_TOKEN),
+      mapOptions: mapbox.MapOptions(
+        pixelRatio: MediaQuery.of(context).devicePixelRatio,
+      ),
       cameraOptions: mapbox.CameraOptions(
         center: mapbox.Point(
           coordinates: mapbox.Position(
