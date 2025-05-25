@@ -1,127 +1,177 @@
-# ------------------------------------------------------------
-# WhereIsThisPlace – GPU backend image (TorchServe + FastAPI + FAISS-GPU)
-# With auto-loading models from the image
-# ------------------------------------------------------------
+# Base image for TorchServe with GPU support
 FROM pytorch/torchserve:0.10.0-gpu
 
-# Build-time variables & environment
-ENV DEBIAN_FRONTEND=noninteractive \
-    PATH="/usr/local/cuda/bin:${PATH}" \
-    LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}" \
-    PYTHONPATH="/app:${PYTHONPATH}"
+# Build-time arguments and Environment variables
+ARG DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+# Note: The warning about undefined $PYTHONPATH here is usually benign.
+# It means the base image might not have PYTHONPATH set, so it effectively becomes /app.
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+ENV PATH="/usr/local/cuda/bin:${PATH}"
+ENV LD_LIBRARY_PATH="/usr/local/cuda/lib64:${LD_LIBRARY_PATH}"
+ENV TORCHSERVE_CONFIG_FILE="/app/config/config.properties"
 
-# Explicitly switch to root user for system package installation
+# Switch to root user for system package installation
 USER root
 
 # 1. System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential git \
-    ca-certificates wget && \
-    rm -rf /var/lib/apt/lists/*
+    build-essential \
+    git \
+    ca-certificates \
+    wget \
+    curl \
+    # For psycopg2 build from source if needed (though poetry should handle prebuilt)
+    libpq-dev \
+    # For potential other native extensions
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
 
-# 2. Copy application source
+# 2. Application setup
 WORKDIR /app
-COPY api/ ./api
-COPY ml/ ./ml
 
-# 3. Fix the import issue in the source code
-RUN if [ -f /app/api/api/main.py ]; then \
-    sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/api/main.py; \
-    echo "Fixed import in api/api/main.py"; \
-    elif [ -f /app/api/main.py ]; then \
-    sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/main.py; \
-    echo "Fixed import in api/main.py"; \
-    fi
+# Copy application source code
+# Assuming Dockerfile is in 'api/docker/', and context is project root '.'
+COPY ../../api/ ./api/
+COPY ../../ml/ ./ml/
+COPY ../../scripts/ ./scripts/
 
-# 4. Install Python dependencies via Poetry (using the working approach)
-RUN pip install --no-cache-dir poetry==1.8.3 && \
-    # Export poetry dependencies to requirements.txt and install them
-    poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
-    pip install --no-cache-dir -r /dev/stdin && \
-    # Install additional required packages including FastAPI explicitly
-    pip install --no-cache-dir fastapi==0.111.0 'pydantic>=2.7' uvicorn[standard] && \
-    # Install database drivers as a safety net in case they're missing from Poetry
-    pip install --no-cache-dir asyncpg==0.29.0 psycopg[binary]==3.2.3 pgvector==0.2.0
+# 3. Install Python dependencies via Poetry
+# Copy Poetry configuration files to a location where poetry can find them relative to its execution directory
+COPY ../../api/pyproject.toml ./api/
+COPY ../../api/poetry.lock ./api/
 
-# 5. Install pre-built FAISS-GPU (much faster and more reliable)
-RUN pip install --no-cache-dir faiss-gpu && \
-    echo "FAISS-GPU installation completed successfully"
+# Install Poetry itself
+RUN pip install poetry==1.8.3
 
-# 6. Prepare model store directory
-RUN mkdir -p /model-store
+# Configure Poetry to not create virtualenvs and install dependencies
+# Running poetry from /app, targeting the ./api directory for project files
+RUN poetry config virtualenvs.create false && \
+    poetry --directory ./api install --no-interaction --no-ansi --only main --no-root
 
-# 7. Copy models into the image
-# Copy from the root models directory (go up from api/docker/)
-COPY models/where.mar /model-store/ || true
-COPY models/mapillary_WPCA128.pth.tar /model-store/ || true
-RUN chown -R model-server:model-server /model-store || true
+# Install additional dependencies that might not be in pyproject.toml or for specific versions
+# python-multipart is needed for FastAPI file uploads
+# faiss-gpu for GPU-accelerated similarity search
+RUN pip install --no-cache-dir \
+    python-multipart \
+    faiss-gpu \
+    asyncpg==0.29.0 \
+    psycopg[binary]==3.2.3 \
+    pgvector==0.2.0
 
-# List what models we have
-RUN echo "Models in /model-store:" && ls -la /model-store/
+# 4. Prepare model store and TorchServe configuration
+RUN mkdir -p /model-store /app/config /app/logs
+RUN chown -R model-server:model-server /model-store /app/logs
 
-# 8. Create TorchServe config for auto-loading
-RUN echo 'inference_address=http://0.0.0.0:8080\n\
-management_address=http://0.0.0.0:8081\n\
-metrics_address=http://0.0.0.0:8082\n\
-number_of_netty_threads=4\n\
-job_queue_size=100\n\
-model_store=/model-store\n\
-load_models=where.mar\n\
-default_workers_per_model=1' > /home/model-server/config.properties
+# Copy model files from the project's 'models' directory (relative to build context)
+COPY ../../models/where.mar /model-store/
+COPY ../../models/mapillary_WPCA128.pth.tar /model-store/
+# Add more COPY lines if you have other model-related files
 
-# Ensure the config file has proper permissions
-RUN chown model-server:model-server /home/model-server/config.properties
+# Verify models are copied and set permissions
+RUN if ls /model-store/where.mar >/dev/null 2>&1; then \
+        echo "where.mar copied to /model-store/"; \
+    else \
+        echo "WARNING: where.mar not found in context's models/ directory"; \
+    fi && \
+    ls -la /model-store/ && \
+    chown -R model-server:model-server /model-store
 
-# 9. Create improved startup script with auto-loading support
-RUN echo '#!/bin/bash\n\
-set -e\n\
-\n\
-echo "Starting WhereIsThisPlace services..."\n\
-echo "Models available in /model-store:"\n\
-ls -la /model-store/\n\
-\n\
-# Start TorchServe with the config file that auto-loads models\n\
-echo "Starting TorchServe with auto-loading configuration..."\n\
-torchserve \\\n\
-    --start \\\n\
-    --model-store /model-store \\\n\
-    --ts-config /home/model-server/config.properties \\\n\
-    --ncs\n\
-\n\
-# Wait for TorchServe to be ready and models to load\n\
-echo "Waiting for TorchServe to start and load models..."\n\
-for i in {1..60}; do\n\
-    if curl -s http://localhost:8081/ping > /dev/null 2>&1; then\n\
-        echo "TorchServe is running!"\n\
-        # Check if model is loaded\n\
-        if curl -s http://localhost:8081/models/where 2>/dev/null | grep -q "where"; then\n\
-            echo "✅ Model '"'"'where'"'"' is loaded and ready!"\n\
-            break\n\
-        fi\n\
-    fi\n\
-    if [ $i -eq 60 ]; then\n\
-        echo "⚠ Timeout waiting for model to load, continuing anyway..."\n\
-        curl -s http://localhost:8081/models || echo "Failed to list models"\n\
-    fi\n\
-    sleep 2\n\
-done\n\
-\n\
-# Show loaded models\n\
-echo "Currently loaded models:"\n\
-curl -s http://localhost:8081/models || echo "Failed to list models"\n\
-\n\
-echo "Starting FastAPI application..."\n\
-cd /app\n\
-# Based on the repository structure, main.py is at api/api/main.py\n\
-# and should be run as api.main:app\n\
-exec uvicorn api.main:app --host 0.0.0.0 --port 8000\n\
-' > /start.sh && chmod +x /start.sh
+# Create TorchServe configuration file for auto-loading models
+# This tells TorchServe to load 'where.mar' on startup.
+RUN echo "inference_address=http://0.0.0.0:8080" > ${TORCHSERVE_CONFIG_FILE} && \
+    echo "management_address=http://0.0.0.0:8081" >> ${TORCHSERVE_CONFIG_FILE} && \
+    echo "metrics_address=http://0.0.0.0:8082" >> ${TORCHSERVE_CONFIG_FILE} && \
+    echo "model_store=/model-store" >> ${TORCHSERVE_CONFIG_FILE} && \
+    echo "load_models=where.mar" >> ${TORCHSERVE_CONFIG_FILE} && \
+    echo "default_workers_per_model=1" >> ${TORCHSERVE_CONFIG_FILE} && \
+    echo "NUM_WORKERS=1" >> ${TORCHSERVE_CONFIG_FILE} && \
+    chown model-server:model-server ${TORCHSERVE_CONFIG_FILE}
 
-# 10. Expose ports
+# 5. Create startup script
+RUN echo '#!/bin/bash' > /app/start.sh && \
+    echo 'set -e' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo 'echo "Starting WhereIsThisPlace services..."' >> /app/start.sh && \
+    echo 'echo "Models available in /model-store:"' >> /app/start.sh && \
+    echo 'ls -la /model-store/' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Start TorchServe with the config file that auto-loads models' >> /app/start.sh && \
+    echo 'echo "Starting TorchServe with configuration: ${TORCHSERVE_CONFIG_FILE}"' >> /app/start.sh && \
+    echo 'torchserve \\' >> /app/start.sh && \
+    echo '    --start \\' >> /app/start.sh && \
+    echo '    --model-store /model-store \\' >> /app/start.sh && \
+    echo '    --ts-config ${TORCHSERVE_CONFIG_FILE} \\' >> /app/start.sh && \
+    echo '    --log-config /app/config/log4j.properties & # Optional: if you have custom log4j settings' >> /app/start.sh && \
+    echo 'TORCHSERVE_PID=$!' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Wait for TorchServe to be ready and the model to load' >> /app/start.sh && \
+    echo 'echo "Waiting for TorchServe to start and load models (up to 60s)..."' >> /app/start.sh && \
+    echo 'for i in {1..30}; do' >> /app/start.sh && \
+    echo '    if curl -s http://localhost:8081/ping > /dev/null 2>&1 && curl -s http://localhost:8081/models/where 2>/dev/null | grep -q "\\"status\\": \\"READY\\""; then' >> /app/start.sh && \
+    echo '        echo "TorchServe is running and model '"'"'where'"'"' is loaded and ready!"' >> /app/start.sh && \
+    echo '        break' >> /app/start.sh && \
+    echo '    fi' >> /app/start.sh && \
+    echo '    if [ $i -eq 30 ]; then' >> /app/start.sh && \
+    echo '        echo "WARNING: Timeout waiting for model to load or TorchServe to start properly."' >> /app/start.sh && \
+    echo '        echo "TorchServe ping status:"' >> /app/start.sh && \
+    echo '        curl -s http://localhost:8081/ping || echo "Ping failed"' >> /app/start.sh && \
+    echo '        echo "TorchServe model status:"' >> /app/start.sh && \
+    echo '        curl -s http://localhost:8081/models/where || echo "Model status check failed"' >> /app/start.sh && \
+    echo '    fi' >> /app/start.sh && \
+    echo '    sleep 2' >> /app/start.sh && \
+    echo 'done' >> /app/start.sh && \
+    echo '' >> /app/start.sh && \
+    echo '# Start FastAPI application' >> /app/start.sh && \
+    echo 'echo "Starting FastAPI application..."' >> /app/start.sh && \
+    echo 'cd /app' >> /app/start.sh && \
+    echo 'exec uvicorn api.api.main:app --host 0.0.0.0 --port 8000 --forwarded-allow-ips="*" --log-config /app/config/uvicorn_log_config.json' >> /app/start.sh && \
+    chmod +x /app/start.sh
+
+# Optional: Add custom log4j.properties for TorchServe if needed
+# COPY config/log4j.properties /app/config/log4j.properties
+# RUN chown model-server:model-server /app/config/log4j.properties
+
+# Optional: Add custom uvicorn_log_config.json for FastAPI if needed
+RUN echo '{' > /app/config/uvicorn_log_config.json && \
+    echo '    "version": 1,' >> /app/config/uvicorn_log_config.json && \
+    echo '    "disable_existing_loggers": false,' >> /app/config/uvicorn_log_config.json && \
+    echo '    "formatters": {' >> /app/config/uvicorn_log_config.json && \
+    echo '        "default": {' >> /app/config/uvicorn_log_config.json && \
+    echo '            "()": "uvicorn.logging.DefaultFormatter",' >> /app/config/uvicorn_log_config.json && \
+    echo '            "fmt": "%(levelprefix)s %(asctime)s %(message)s",' >> /app/config/uvicorn_log_config.json && \
+    echo '            "datefmt": "%Y-%m-%d %H:%M:%S"' >> /app/config/uvicorn_log_config.json && \
+    echo '        }' >> /app/config/uvicorn_log_config.json && \
+    echo '    },' >> /app/config/uvicorn_log_config.json && \
+    echo '    "handlers": {' >> /app/config/uvicorn_log_config.json && \
+    echo '        "default": {' >> /app/config/uvicorn_log_config.json && \
+    echo '            "formatter": "default",' >> /app/config/uvicorn_log_config.json && \
+    echo '            "class": "logging.StreamHandler",' >> /app/config/uvicorn_log_config.json && \
+    echo '            "stream": "ext://sys.stderr"' >> /app/config/uvicorn_log_config.json && \
+    echo '        }' >> /app/config/uvicorn_log_config.json && \
+    echo '    },' >> /app/config/uvicorn_log_config.json && \
+    echo '    "loggers": {' >> /app/config/uvicorn_log_config.json && \
+    echo '        "uvicorn": {"handlers": ["default"], "level": "INFO"},' >> /app/config/uvicorn_log_config.json && \
+    echo '        "uvicorn.error": {"level": "INFO"},' >> /app/config/uvicorn_log_config.json && \
+    echo '        "uvicorn.access": {"handlers": ["default"], "level": "INFO", "propagate": false}' >> /app/config/uvicorn_log_config.json && \
+    echo '    }' >> /app/config/uvicorn_log_config.json && \
+    echo '}' >> /app/config/uvicorn_log_config.json && \
+    chown model-server:model-server /app/config/uvicorn_log_config.json
+
+
+# 6. Expose necessary ports
 # 8080: TorchServe inference API
-# 8081: TorchServe management API (internal)
+# 8081: TorchServe management API
+# 8082: TorchServe metrics API
 # 8000: FastAPI application
-EXPOSE 8080 8081 8000
+EXPOSE 8000 8080 8081 8082
 
-# 11. Set default command
-CMD ["/start.sh"]
+# Healthcheck for TorchServe (optional but recommended)
+# HEALTHCHECK --interval=30s --timeout=10s --start-period=5m --retries=3 \
+# CMD curl -f http://localhost:8081/ping || exit 1
+
+# 7. Set the default command to run the startup script
+# The TorchServe user is 'model-server'. FastAPI will run as this user too.
+USER model-server
+CMD ["/app/start.sh"]
