@@ -42,9 +42,7 @@ dist/
 
 # Models (they're already copied specifically in Dockerfile)
 # This prevents duplication
-models/*.mar
 models/*.pth
-models/*.pth.tar
 models/*.pkl
 
 # Flutter/Dart
