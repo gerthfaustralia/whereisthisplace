@@ -142,8 +142,6 @@ models/*.pth
 models/*.pkl
 models/*.h5
 models/*.ckpt
-models/*.tar
-models/*.mar
 models/*.onnx
 models/checkpoints/
 models/runs/
