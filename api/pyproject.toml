@@ -13,7 +13,7 @@ readme = "README.md"
 # if PYTHONPATH is handled correctly, but explicit is often better.
 
 [tool.poetry.dependencies]
-python = ">=3.12"
+python = "^3.9"
 
 # Dependencies from your original [project] section
 fastapi = ">=0.115.12,<0.116.0"
