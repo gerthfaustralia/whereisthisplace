@@ -1,6 +1,10 @@
 # FastAPI application with CPU-only PyTorch
 FROM python:3.12-slim
 
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH="/app:${PYTHONPATH}"
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     curl \
@@ -16,35 +20,35 @@ WORKDIR /app
 # Install Poetry
 RUN pip install poetry
 
-# Copy poetry files from api directory
+# Copy Poetry files from the api directory on the host to the current WORKDIR (/app) in the image
 COPY api/pyproject.toml api/poetry.lock ./
 
 # Install dependencies (--no-root to skip installing the project itself)
+# This installs dependencies defined in /app/pyproject.toml
 RUN poetry config virtualenvs.create false && \
     poetry install --no-interaction --no-ansi --only main --no-root
 
 # Install CPU-only PyTorch and additional packages
+# Added python-multipart here
 RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
     pip install \
     asyncpg==0.29.0 \
     psycopg[binary]==3.2.3 \
-    pgvector==0.2.0
+    pgvector==0.2.0 \
+    python-multipart
 
-# Copy application code
+# Copy application source code from host to image
+# Host's ./api directory is copied to /app/api in the image
+# Host's ./ml directory is copied to /app/ml in the image
 COPY api/ ./api/
 COPY ml/ ./ml/
 COPY scripts/ ./scripts/
 
-# Create empty models directory
+# Create a models directory in the image
 RUN mkdir -p ./models
 
-# Set environment variables
-ENV OMP_NUM_THREADS=4
-ENV PYTORCH_DISABLE_CUDA=1
-ENV PYTHONPATH=/app
-
-# Expose port
+# Expose the port the app runs on
 EXPOSE 8000
 
-# Run FastAPI directly (skip TorchServe for now)
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Command to run the application
+CMD ["uvicorn", "api.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
