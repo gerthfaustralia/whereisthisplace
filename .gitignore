@@ -1,0 +1,313 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+poetry-env/
+
+# Poetry
+poetry.lock
+# Keep poetry.lock in git for reproducible builds
+# Uncomment if you want to ignore it
+# poetry.lock
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# celery beat schedule file
+celerybeat-schedule
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
+.env
+.env.*
+!.env.example
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytest
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.coverage.*
+coverage.xml
+*.cover
+
+# Flutter/Dart
+app/.dart_tool/
+app/.packages
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/.pub-cache/
+app/.pub/
+app/build/
+app/doc/api/
+app/.idea/
+app/*.iml
+app/*.ipr
+app/*.iws
+app/.metadata
+app/android/.gradle/
+app/android/captures/
+app/android/.idea/
+app/android/local.properties
+app/android/**/GeneratedPluginRegistrant.java
+app/ios/Flutter/App.framework
+app/ios/Flutter/Flutter.framework
+app/ios/Flutter/Flutter.podspec
+app/ios/Flutter/Generated.xcconfig
+app/ios/Flutter/app.flx
+app/ios/Flutter/app.zip
+app/ios/Flutter/flutter_assets/
+app/ios/Flutter/flutter_export_environment.sh
+app/ios/ServiceDefinitions.json
+app/ios/Runner/GeneratedPluginRegistrant.*
+app/ios/.symlinks/
+app/ios/Pods/
+app/ios/Podfile.lock
+app/windows/flutter/generated_plugin_registrant.cc
+app/windows/flutter/generated_plugin_registrant.h
+app/linux/flutter/generated_plugin_registrant.cc
+app/linux/flutter/generated_plugin_registrant.h
+app/macos/Flutter/GeneratedPluginRegistrant.swift
+
+# Machine Learning / Models
+models/*.pth
+models/*.pkl
+models/*.h5
+models/*.ckpt
+models/*.tar
+models/*.mar
+models/*.onnx
+models/checkpoints/
+models/runs/
+models/outputs/
+models/logs/
+!models/.gitkeep
+!models/README.md
+
+# TorchServe
+model-store/
+logs/
+*.mar
+torch-model-archiver/
+
+# Datasets
+datasets/*.csv
+datasets/*.json
+datasets/*.parquet
+datasets/*.feather
+datasets/*.h5
+datasets/*.hdf5
+datasets/*.tfrecord
+datasets/images/
+!datasets/.gitkeep
+!datasets/README.md
+!datasets/sample.csv
+
+# Large files
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.rar
+*.7z
+*.dmg
+*.iso
+*.jar
+*.war
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+postgres-data/
+
+# Docker
+.docker/
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+tmp/
+temp/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+
+# OS files
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+.directory
+.Trash-*
+.nfs*
+
+# Secrets and credentials
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+
+# API keys
+api_keys.json
+credentials.json
+service-account-key.json
+
+# Alembic
+alembic/versions/*.pyc
+
+# Documentation build
+docs/_build/
+docs/.doctrees/
+
+# Backup files
+backup/
+backups/
+*.backup
+
+# Test output
+test-results/
+test-reports/
+e2e/screenshots/
+e2e/videos/
+
+# Node.js (if using any JS tools)
+node_modules/
+jspm_packages/
+bower_components/
+
+# IDEs and editors
+*.sublime-project
+*.sublime-workspace
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+
+# Custom
+.notes/
+TODO.txt
+NOTES.txt
+scratch/
+
+# Keep these files
+!.gitkeep
+!requirements.txt
+!poetry.lock
+!Dockerfile*
+!docker-compose*.yml
+!.dockerignore
+!.gitignore

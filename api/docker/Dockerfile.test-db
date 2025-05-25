@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc g++ git curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy only what's needed for testing
+COPY api/pyproject.toml api/poetry.lock ./api/
+
+# Install Poetry and dependencies
+RUN pip install --no-cache-dir poetry==1.8.3 && \
+    poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
+    pip install --no-cache-dir -r /dev/stdin && \
+    pip install --no-cache-dir fastapi==0.111.0 'pydantic>=2.7' uvicorn[standard] && \
+    # This is the line being added in PR #43:
+    pip install --no-cache-dir asyncpg psycopg[binary] pgvector
+
+# Test imports
+RUN python -c "import asyncpg, psycopg, pgvector; print('All DB packages imported successfully')"

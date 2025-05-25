@@ -1,5 +1,6 @@
 # ------------------------------------------------------------
 # WhereIsThisPlace – GPU backend image (TorchServe + FastAPI + FAISS-GPU)
+# With auto-loading models from the image
 # ------------------------------------------------------------
 FROM pytorch/torchserve:0.10.0-gpu
 
@@ -14,24 +15,22 @@ USER root
 
 # 1. System dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      build-essential git \
-      ca-certificates wget && \
+    build-essential git \
+    ca-certificates wget && \
     rm -rf /var/lib/apt/lists/*
 
 # 2. Copy application source
 WORKDIR /app
 COPY api/ ./api
-COPY ml/  ./ml
-# If you have a 'models' directory in the build context for where-v1.mar, copy it too
-COPY models/ /app/models
+COPY ml/ ./ml
 
 # 3. Fix the import issue in the source code
 RUN if [ -f /app/api/api/main.py ]; then \
-        sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/api/main.py; \
-        echo "Fixed import in api/api/main.py"; \
+    sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/api/main.py; \
+    echo "Fixed import in api/api/main.py"; \
     elif [ -f /app/api/main.py ]; then \
-        sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/main.py; \
-        echo "Fixed import in api/main.py"; \
+    sed -i 's/from api.routes.predict import router/from routes.predict import router/' /app/api/main.py; \
+    echo "Fixed import in api/main.py"; \
     fi
 
 # 4. Install Python dependencies via Poetry (using the working approach)
@@ -42,61 +41,87 @@ RUN pip install --no-cache-dir poetry==1.8.3 && \
     # Install additional required packages including FastAPI explicitly
     pip install --no-cache-dir fastapi==0.111.0 'pydantic>=2.7' uvicorn[standard] && \
     # Install database drivers as a safety net in case they're missing from Poetry
-    pip install --no-cache-dir asyncpg psycopg[binary] pgvector
+    pip install --no-cache-dir asyncpg==0.29.0 psycopg[binary]==3.2.3 pgvector==0.2.0
 
 # 5. Install pre-built FAISS-GPU (much faster and more reliable)
 RUN pip install --no-cache-dir faiss-gpu && \
     echo "FAISS-GPU installation completed successfully"
 
 # 6. Prepare model store directory
-RUN mkdir -p /model-store && \
-    if [ -f /app/models/where-v1.mar ]; then \
-        cp /app/models/where-v1.mar /model-store/ && \
-        echo "Model artifact copied to /model-store/"; \
-    else \
-        echo "WARNING: No model artifact found at /app/models/where-v1.mar"; \
-    fi
+RUN mkdir -p /model-store
 
-# 7. Create startup script (inline for better control)
+# 7. Copy models into the image
+# Copy from the root models directory (go up from api/docker/)
+COPY models/where.mar /model-store/ || true
+COPY models/mapillary_WPCA128.pth.tar /model-store/ || true
+RUN chown -R model-server:model-server /model-store || true
+
+# List what models we have
+RUN echo "Models in /model-store:" && ls -la /model-store/
+
+# 8. Create TorchServe config for auto-loading
+RUN echo 'inference_address=http://0.0.0.0:8080\n\
+management_address=http://0.0.0.0:8081\n\
+metrics_address=http://0.0.0.0:8082\n\
+number_of_netty_threads=4\n\
+job_queue_size=100\n\
+model_store=/model-store\n\
+load_models=where.mar\n\
+default_workers_per_model=1' > /home/model-server/config.properties
+
+# Ensure the config file has proper permissions
+RUN chown model-server:model-server /home/model-server/config.properties
+
+# 9. Create improved startup script with auto-loading support
 RUN echo '#!/bin/bash\n\
 set -e\n\
 \n\
-echo "Starting TorchServe..."\n\
-torchserve --start --model-store /model-store --ncs\n\
+echo "Starting WhereIsThisPlace services..."\n\
+echo "Models available in /model-store:"\n\
+ls -la /model-store/\n\
 \n\
-echo "Waiting for TorchServe to start..."\n\
-sleep 10\n\
+# Start TorchServe with the config file that auto-loads models\n\
+echo "Starting TorchServe with auto-loading configuration..."\n\
+torchserve \\\n\
+    --start \\\n\
+    --model-store /model-store \\\n\
+    --ts-config /home/model-server/config.properties \\\n\
+    --ncs\n\
 \n\
-# Check if model needs to be registered\n\
-if [ -f /model-store/where-v1.mar ]; then\n\
-    echo "Checking if model needs to be registered..."\n\
-    if ! curl -s http://localhost:8081/models | grep -q "where"; then\n\
-        echo "Registering where model..."\n\
-        curl -X POST "http://localhost:8081/models?url=where-v1.mar&model_name=where&initial_workers=1"\n\
+# Wait for TorchServe to be ready and models to load\n\
+echo "Waiting for TorchServe to start and load models..."\n\
+for i in {1..60}; do\n\
+    if curl -s http://localhost:8081/ping > /dev/null 2>&1; then\n\
+        echo "TorchServe is running!"\n\
+        # Check if model is loaded\n\
+        if curl -s http://localhost:8081/models/where 2>/dev/null | grep -q "where"; then\n\
+            echo "✅ Model '"'"'where'"'"' is loaded and ready!"\n\
+            break\n\
+        fi\n\
     fi\n\
-fi\n\
+    if [ $i -eq 60 ]; then\n\
+        echo "⚠ Timeout waiting for model to load, continuing anyway..."\n\
+        curl -s http://localhost:8081/models || echo "Failed to list models"\n\
+    fi\n\
+    sleep 2\n\
+done\n\
+\n\
+# Show loaded models\n\
+echo "Currently loaded models:"\n\
+curl -s http://localhost:8081/models || echo "Failed to list models"\n\
 \n\
 echo "Starting FastAPI application..."\n\
 cd /app\n\
-# Try different module paths\n\
-if [ -f "api/main.py" ]; then\n\
-    echo "Starting with api.main:app"\n\
-    exec uvicorn api.main:app --host 0.0.0.0 --port 8000\n\
-elif [ -f "api/api/main.py" ]; then\n\
-    echo "Starting with api.api.main:app"\n\
-    exec uvicorn api.api.main:app --host 0.0.0.0 --port 8000\n\
-else\n\
-    echo "ERROR: Could not find FastAPI main module!"\n\
-    find /app -name "main.py" -type f\n\
-    exit 1\n\
-fi\n\
+# Based on the repository structure, main.py is at api/api/main.py\n\
+# and should be run as api.main:app\n\
+exec uvicorn api.main:app --host 0.0.0.0 --port 8000\n\
 ' > /start.sh && chmod +x /start.sh
 
-# 8. Expose ports
+# 10. Expose ports
 # 8080: TorchServe inference API
 # 8081: TorchServe management API (internal)
 # 8000: FastAPI application
-EXPOSE 8080 8000
+EXPOSE 8080 8081 8000
 
-# 9. Set default command
+# 11. Set default command
 CMD ["/start.sh"]
