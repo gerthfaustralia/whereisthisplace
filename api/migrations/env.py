@@ -2,6 +2,10 @@ from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 config = context.config
 if config.config_file_name is not None:
@@ -19,6 +23,11 @@ def run_migrations_offline():
 
 
 def run_migrations_online():
+    # Get DATABASE_URL from environment variable
+    db_url = os.getenv('DATABASE_URL')
+    if db_url:
+        config.set_main_option('sqlalchemy.url', db_url)
+    
     connectable = engine_from_config(
         config.get_section(config.config_ini_section),
         prefix="sqlalchemy.",
