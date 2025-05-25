@@ -40,7 +40,9 @@ RUN pip install --no-cache-dir poetry==1.8.3 && \
     poetry --directory ./api export --without-hashes --only main -f requirements.txt | \
     pip install --no-cache-dir -r /dev/stdin && \
     # Install additional required packages including FastAPI explicitly
-    pip install --no-cache-dir fastapi==0.111.0 'pydantic>=2.7' uvicorn[standard]
+    pip install --no-cache-dir fastapi==0.111.0 'pydantic>=2.7' uvicorn[standard] && \
+    # Install database drivers as a safety net in case they're missing from Poetry
+    pip install --no-cache-dir asyncpg psycopg[binary] pgvector
 
 # 5. Install pre-built FAISS-GPU (much faster and more reliable)
 RUN pip install --no-cache-dir faiss-gpu && \
