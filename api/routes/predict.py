@@ -10,3 +10,4 @@ async def predict(photo: UploadFile = File(...)):
     retrieval_results = retrieval.search(image_bytes, k=5)
     (lat, lon), confidence = fuse.fuse(scene=scene, retrieval=retrieval_results)
     return {"latitude": lat, "longitude": lon, "confidence": confidence}
+

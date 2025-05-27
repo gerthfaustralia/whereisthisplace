@@ -6,8 +6,8 @@ import asyncio
 from fastapi.testclient import TestClient
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.append(str(ROOT / "api"))
-sys.path.append(str(ROOT))
+sys.path.insert(0, str(ROOT))
+sys.path.insert(1, str(ROOT / "api"))
 
 import api.main
 from routes.predict import predict
@@ -46,3 +46,4 @@ def test_rate_limit_returns_429_after_limit_exceeded():
         assert resp.status_code == 200
     resp = client.get("/health")
     assert resp.status_code == 429
+
