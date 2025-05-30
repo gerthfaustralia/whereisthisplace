@@ -1,17 +1,16 @@
 import sys
 from pathlib import Path
 
-# When this file is /app/api/main.py, ROOT becomes /app
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
-    sys.path.append(str(ROOT))  # Ensures /app is in sys.path
+    sys.path.append(str(ROOT))
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes.predict import router as predict_router
-# Corrected import for middleware:
 from api.middleware import EphemeralUploadMiddleware, RateLimitMiddleware
 import requests
+import os
 
 app = FastAPI()
 
@@ -33,29 +32,39 @@ def read_root():
     return {"message": "Hello World"}
 
 
-TORCHSERVE_MANAGEMENT_URL = "http://localhost:8081"
+TORCHSERVE_MANAGEMENT_URL = os.getenv('TORCHSERVE_MANAGEMENT_URL', 'http://localhost:8081')
 
 
 @app.get("/health")
 def health_check():
     """Report FastAPI and TorchServe status."""
+    torchserve_status = 'unhealthy'
     models_data = {}
-    torchserve_status = "unhealthy"
+
     try:
-        response = requests.get(f"{TORCHSERVE_MANAGEMENT_URL}/models", timeout=10)
+        # Use requests library which handles connection better
+        response = requests.get(f'{TORCHSERVE_MANAGEMENT_URL}/models', timeout=10)
+
         if response.status_code == 200:
-            data = response.json()
-            models_data = data
-            if any(m.get("modelName") == "where" for m in data.get("models", [])):
-                torchserve_status = "healthy"
+            models_data = response.json()
+            # Check if models are loaded
+            if models_data.get("models") and len(models_data["models"]) > 0:
+                # Check specifically for the "where" model
+                model_names = [model.get("modelName") for model in models_data.get("models", [])]
+                if "where" in model_names:
+                    torchserve_status = 'healthy'
+                else:
+                    torchserve_status = f'unhealthy - "where" model not found. Found models: {model_names}'
             else:
-                torchserve_status = 'unhealthy - model "where" not found or no models loaded'
+                torchserve_status = 'unhealthy - no models loaded'
         else:
-            torchserve_status = f"unhealthy, status: {response.status_code}, body: {response.text[:250]}"
-    except requests.exceptions.RequestException as e:
-        torchserve_status = f"unhealthy: {e}"
+            torchserve_status = f'unhealthy, status: {response.status_code}, body: {response.text}'
+    except requests.exceptions.ConnectionError as e:
+        torchserve_status = f'unhealthy: connection error - {str(e)}'
+    except requests.exceptions.Timeout as e:
+        torchserve_status = f'unhealthy: timeout - {str(e)}'
     except Exception as e:
-        torchserve_status = f"unhealthy processing response: {e}"
+        torchserve_status = f'unhealthy: {str(e)}'
 
     return {
         "fastapi_status": "healthy",
