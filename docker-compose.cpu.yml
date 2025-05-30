@@ -1,34 +1,39 @@
-version: '3.8'
+# The top-level 'version' key is obsolete in modern Docker Compose and has been removed.
 
 services:
-  # CPU-only backend
   backend:
     build:
       context: .
-      dockerfile: api/docker/Dockerfile.cpu
+      dockerfile: api/docker/Dockerfile.cpu # Ensure this Dockerfile installs Java, TorchServe, and makes start.sh executable
     image: where-backend:cpu
     container_name: where-backend
     ports:
-      - "8000:8000"
-      - "8080:8080" 
-      - "8081:8081"
+      - "8000:8000" # FastAPI application
+      - "8080:8080" # TorchServe inference endpoint
+      - "8081:8081" # TorchServe management endpoint
     environment:
       - DATABASE_URL=postgresql://whereuser:wherepass@postgres:5432/whereisthisplace
-      - MAPBOX_TOKEN=${MAPBOX_TOKEN:-your_mapbox_token_here}
+      - MAPBOX_TOKEN=${MAPBOX_TOKEN:-your_mapbox_token_here} # Make sure to set this in your .env file or environment
       - IMAGE_TTL_HOURS=24
-      - MODEL_PATH=/model-store
+      - MODEL_PATH=/model-store         # Path inside the container where models are stored for TorchServe
+      - PYTHONPATH=/app                 # Ensures Python can find modules in the /app directory
+      - TS_DISABLE_TOKEN_AUTHORIZATION=true # Disables TorchServe's default token authentication for easier local dev
     volumes:
-      - ./api:/app/api:rw
-      - ./ml:/app/ml:rw
-      - ./models:/model-store:ro
-      - model-store:/model-store
+      - ./api:/app/api:rw                 # Mounts your local 'api' code into the container
+      - ./ml:/app/ml:rw                   # Mounts your local 'ml' code
+      - ./models:/model-store:ro          # Mounts your local models read-only for TorchServe
+      - ./config:/app/config:ro           # Mounts your local 'config' directory (for config.properties) read-only
+    command: /app/api/docker/start.sh     # Explicitly runs the start.sh script
+                                          # Ensure host's api/docker/start.sh is executable (`chmod +x api/docker/start.sh`)
+                                          # and correctly loads 'where=where.mar' and starts Uvicorn on port 8000.
     depends_on:
       postgres:
-        condition: service_healthy
+        condition: service_healthy       # Waits for PostgreSQL to be healthy before starting
     networks:
       - where-network
-    # Remove the command and let the Dockerfile handle it
-    # The Dockerfile already has the correct logic to find main.py
+    # platform: linux/amd64 # Uncomment if you are on an ARM-based host (e.g., Apple Silicon)
+                            # and the image 'where-backend:cpu' is built for AMD64.
+                            # For better performance, use or build ARM64-native images if possible.
 
   postgres:
     image: postgis/postgis:15-3.5
@@ -40,32 +45,37 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - postgres-data:/var/lib/postgresql/data # Persists PostgreSQL data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro # Initializes the database on first run
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U whereuser -d whereisthisplace"]
+      test: ["CMD-SHELL", "pg_isready -U whereuser -d whereisthisplace"] # Checks if PostgreSQL is ready
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - where-network
+    # platform: linux/amd64 # Uncomment if on ARM and this PostGIS image causes issues.
 
   adminer:
-    image: adminer
+    image: adminer # A database management tool
     container_name: where-adminer
     ports:
-      - "8090:8080"
+      - "8090:8080" # Access Adminer on http://localhost:8090
     depends_on:
-      - postgres
+      - postgres # Waits for PostgreSQL to be available
     networks:
       - where-network
+    # platform: linux/amd64 # Uncomment if on ARM if needed.
 
 volumes:
-  postgres-data:
+  postgres-data: # Defines the named volume for PostgreSQL data persistence
     driver: local
-  model-store:
+  model-store:   # Defines a named volume for model-store.
+                 # Note: The 'backend' service uses a bind mount from host './models' to '/model-store',
+                 # so this globally defined named volume 'model-store' isn't directly populated or used by the 'backend'
+                 # in this specific configuration unless the bind mount were removed.
     driver: local
 
 networks:
-  where-network:
+  where-network: # Defines the bridge network for communication between services
     driver: bridge

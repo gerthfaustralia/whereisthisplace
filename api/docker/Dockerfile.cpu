@@ -3,14 +3,15 @@ FROM python:3.12-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
-ENV PYTHONPATH="/app:${PYTHONPATH}"
+# ENV PYTHONPATH="/app:${PYTHONPATH}" # PYTHONPATH is already set in your docker-compose.cpu.yml, can be redundant here but harmless
 
-# Install system dependencies
+# Install system dependencies, including Java for TorchServe
 RUN apt-get update && apt-get install -y \
     curl \
     git \
     gcc \
     g++ \
+    openjdk-17-jdk \
     postgresql-client \
     libpq-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -28,10 +29,11 @@ COPY api/pyproject.toml api/poetry.lock ./
 RUN poetry config virtualenvs.create false && \
     poetry install --no-interaction --no-ansi --only main --no-root
 
-# Install CPU-only PyTorch and additional packages
-# Added python-multipart here
+# Install CPU-only PyTorch, TorchServe, torch-model-archiver, and additional packages
 RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
     pip install \
+    torchserve \
+    torch-model-archiver \
     asyncpg==0.29.0 \
     psycopg[binary]==3.2.3 \
     pgvector==0.2.0 \
@@ -43,13 +45,20 @@ RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/c
 COPY api/ ./api/
 COPY ml/ ./ml/
 COPY scripts/ ./scripts/
+# It's also good practice to copy the start.sh script into the image,
+# though your docker-compose currently runs it from the volume mount.
+# COPY api/docker/start.sh /app/start.sh
+# RUN chmod +x /app/start.sh
 
 # Create a models directory in the image
 RUN mkdir -p ./models
 
-# Expose the port the app runs on
+# Expose the port the app runs on (FastAPI)
+# TorchServe ports (8080, 8081) are also used but managed by TorchServe itself
 EXPOSE 8000
 
 # Command to run the application
+# This CMD will be overridden by the 'command: /app/api/docker/start.sh'
+# in your docker-compose.cpu.yml.
+# Having a default CMD is still good practice if the image is run standalone.
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
-
