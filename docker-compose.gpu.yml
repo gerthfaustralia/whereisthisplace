@@ -5,12 +5,13 @@ services:
     image: pgvector/pgvector:pg16
     container_name: where-postgres
     environment:
+      # These can also be moved to .env if you prefer consistency
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: whereisthisplace
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql # Ensure this init script is suitable
     ports:
       - "5432:5432"
     healthcheck:
@@ -25,27 +26,27 @@ services:
     image: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
     container_name: where-backend-gpu
     runtime: nvidia
+    # Variables like PYTHONPATH, TORCHSERVE_CONFIG_FILE, LOG_LEVEL, MAPBOX_TOKEN
+    # will be sourced from the .env file and made available to the container's environment.
     environment:
       NVIDIA_VISIBLE_DEVICES: all
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/whereisthisplace
-      TORCHSERVE_URL: http://localhost:8080
-      MAPBOX_TOKEN: ${MAPBOX_TOKEN}
       PYTHONUNBUFFERED: 1
-      PYTHONPATH: /app
-      TORCHSERVE_CONFIG_FILE: /app/config/config.properties # This is used by the script below
-      LOG_LEVEL: INFO
+      # If DATABASE_URL and TORCHSERVE_URL are in your .env, you can remove them from here.
+      # Otherwise, these provide defaults if not in .env (Compose substitutes ${...} from .env first).
+      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/whereisthisplace}
+      TORCHSERVE_URL: ${TORCHSERVE_URL:-http://localhost:8080}
     volumes:
-      - ./api:/app/api:rw
-      - ./ml:/app/ml:rw
-      - ./scripts:/app/scripts:rw
-      - ./logs:/app/logs:rw
-      # - ./models:/model-store:ro # Keep commented to use models from the image
-      - ./config:/app/config:ro   # Host's ./config/ is mounted here. CRITICAL: ./config/config.properties must exist on host.
+      # - ./api:/app/api:rw  # REMOVED: API code now comes from the Docker image.
+      - ./ml:/app/ml:rw      # Mount local ./ml to /app/ml; remove if ML files are also in image and not to be overwritten.
+      - ./scripts:/app/scripts:rw # Mount local ./scripts; remove if scripts are also in image and not to be overwritten.
+      - ./logs:/app/logs:rw      # Mount host logs directory to persist container logs.
+      # - ./models:/model-store:ro # Uncomment if you want to mount models from host instead of using those in the image.
+      - ./config:/app/config:ro   # CRITICAL: Mounts host's ./config directory to /app/config for config.properties.
     ports:
-      - "8000:8000"
-      - "8080:8080"
-      - "8081:8081"
-      - "8082:8082"
+      - "8000:8000" # FastAPI
+      - "8080:8080" # TorchServe inference
+      - "8081:8081" # TorchServe management
+      - "8082:8082" # TorchServe metrics
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,70 +54,86 @@ services:
     command:
       - "-c"
       - |
-        echo '=== Backend Service Starting (Script Version 6) ==='
+        set -e # Exit immediately if a command exits with a non-zero status.
+        echo '=== Backend Service Starting (Script Version FINAL .env V3) ==='
         echo "Running as user: $(whoami)"
         
-        # Set PYTHONPATH for the script environment and subsequent commands
-        # Docker Compose 'environment: PYTHONPATH: /app' should make /app available to Python.
-        export PYTHONPATH="/app:${PYTHONPATH}" # Prepend /app to allow 'import api.main'
-        echo "SCRIPT PYTHONPATH effectively set to: ${PYTHONPATH}"
-
-        echo 'Ensuring package structure for FastAPI app...'
-        mkdir -p /app/api/api
-        touch /app/api/__init__.py
-        touch /app/api/api/__init__.py
-        echo "Listing content of /app/api for context:"
-        ls -lR /app/api
+        # These variables are now expected to be correctly populated in the shell's environment from the .env file.
+        echo "PYTHONPATH from environment: '$PYTHONPATH'"
+        echo "TORCHSERVE_CONFIG_FILE from environment (initial read): '$TORCHSERVE_CONFIG_FILE'"
+        echo "LOG_LEVEL from environment: '$LOG_LEVEL'"
+        # For security, avoid printing sensitive tokens: echo "MAPBOX_TOKEN is set (value not shown)"
 
         echo 'Installing/Verifying required Python packages in /home/venv/...'
-        /home/venv/bin/pip3 install --no-cache-dir requests fastapi uvicorn psycopg2-binary pgvector
+        # This assumes these might not be in the image's venv or you want to ensure specific versions.
+        /home/venv/bin/pip3 install --no-cache-dir requests fastapi uvicorn psycopg2-binary pgvector python-multipart
         
         echo 'Starting TorchServe...'
-        # Directly use the TORCHSERVE_CONFIG_FILE env var set by Docker Compose.
-        # This var should point to /app/config/config.properties
-        echo "TorchServe will use config file from env var: '${TORCHSERVE_CONFIG_FILE}'"
+        
+        # Clean and verify TORCHSERVE_CONFIG_FILE value from .env
+        # Use a distinct script-local variable name to avoid conflicts with Docker Compose's interpretation of certain names.
+        config_file_from_env_cleaned=$(echo "$TORCHSERVE_CONFIG_FILE" | tr -d '\r' | xargs) # Cleans \r and trims whitespace
+        echo "DEBUG: Cleaned TORCHSERVE_CONFIG_FILE value (in 'config_file_from_env_cleaned') is: -->'$config_file_from_env_cleaned'<--"
 
-        if [ -z "${TORCHSERVE_CONFIG_FILE}" ]; then
-            # This block should ideally not be hit if docker-compose 'environment' sets the var.
-            echo "CRITICAL WARNING: TORCHSERVE_CONFIG_FILE is seen as empty by the script." >&2
-            echo "Attempting to use hardcoded default: /app/config/config.properties and expecting it to exist from host mount." >&2
-            EFFECTIVE_TS_CONFIG="/app/config/config.properties"
+        # This variable will hold the path TorchServe actually uses
+        ts_config_to_use=""
+
+        # Scenario 1: The cleaned environment variable points to an existing file
+        if [ -n "$config_file_from_env_cleaned" ] && [ -f "$config_file_from_env_cleaned" ]; then
+            echo "INFO: Valid config file found from .env variable: '$config_file_from_env_cleaned'"
+            ts_config_to_use="$config_file_from_env_cleaned"
         else
-            EFFECTIVE_TS_CONFIG="${TORCHSERVE_CONFIG_FILE}"
+            # Log why the environment variable wasn't used
+            if [ -z "$config_file_from_env_cleaned" ]; then
+                echo "WARNING: TORCHSERVE_CONFIG_FILE from .env was empty or became empty after cleaning."
+            else # It was not empty, so the file must not exist at that path
+                echo "WARNING: TORCHSERVE_CONFIG_FILE from .env was '$config_file_from_env_cleaned', but this file was not found."
+            fi
+            
+            # Scenario 2: Fallback to the hardcoded default path (which comes from the host mount)
+            default_ts_config_path="/app/config/config.properties"
+            echo "INFO: Attempting to use fallback default config path: '$default_ts_config_path'"
+            if [ -f "$default_ts_config_path" ]; then
+                echo "INFO: Default config file '$default_ts_config_path' found and will be used."
+                ts_config_to_use="$default_ts_config_path"
+            else
+                echo "ERROR: Default config file '$default_ts_config_path' also not found. This path relies on the host's ./config/config.properties being correctly mounted."
+            fi
         fi
-        
-        echo "Final path for TorchServe config: ${EFFECTIVE_TS_CONFIG}"
-        if [ ! -f "${EFFECTIVE_TS_CONFIG}" ]; then
-            echo "ERROR: TorchServe config file '${EFFECTIVE_TS_CONFIG}' does not exist." >&2
-            echo "Ensure ./config/config.properties exists on your host and is mounted to /app/config/config.properties." >&2
-            echo "Attempting to start TorchServe without explicit --ts-config (will use defaults which might be problematic)..." >&2
+
+        # Now, start TorchServe based on whether we found a valid config file
+        if [ -n "$ts_config_to_use" ]; then
+            echo "TorchServe will be started with --ts-config '$ts_config_to_use'"
+            torchserve --start --ncs --model-store /model-store --models all --ts-config "$ts_config_to_use"
+        else
+            echo "ERROR: No valid TorchServe config file could be determined. Starting TorchServe without --ts-config (will use defaults and may not work as expected)."
             torchserve --start --ncs --model-store /model-store --models all
-        else
-            echo "Using TorchServe config file: ${EFFECTIVE_TS_CONFIG}"
-            torchserve --start --ncs --model-store /model-store --models all --ts-config "${EFFECTIVE_TS_CONFIG}"
         fi
         
-        echo "Listing contents of /model-store (using image's internal models):"
+        echo "Listing contents of /model-store (should be from image unless ./models volume mount is active):"
         ls -l /model-store/
 
-        echo 'Waiting for TorchServe to initialize (30 seconds)...'
-        sleep 30
+        echo 'Waiting for TorchServe to initialize (e.g., 30 seconds)...'
+        sleep 30 
         
-        echo 'TorchServe startup initiated. Checking management API...'
-        echo "Querying http://localhost:8081/models (verbose)..."
-        curl -vs http://localhost:8081/models
-        echo
-        echo "Querying http://localhost:8081/ping (verbose, 404 is often expected default)..."
-        curl -vs http://localhost:8081/ping
-        echo
+        echo 'Checking TorchServe management API (if curl is available)...'
+        if command -v curl &> /dev/null; then
+            echo "Querying http://localhost:8081/models..."
+            curl -vs http://localhost:8081/models || echo "INFO: curl to /models failed. TorchServe management API might not be ready or endpoint differs."
+            echo "Querying http://localhost:8081/ping..."
+            curl -vs http://localhost:8081/ping || echo "INFO: curl to /ping failed. (This is often a 404 by default for /ping on management if not specifically configured)."
+        else
+            echo "INFO: curl command not found. Skipping API checks in startup script. Consider installing curl in the Docker image for these checks."
+        fi
 
-        echo 'Starting FastAPI application from api.main:app ...'
-        cd /app
-        echo "Working directory for FastAPI start: $(pwd)"
-        echo "PYTHONPATH for Uvicorn (from env, should include /app): ${PYTHONPATH}"
-        /home/venv/bin/python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --log-level info
-    networks:
-      - whereisthisplace-network
+        echo 'Starting FastAPI application (uvicorn)...'
+        cd /app # Ensure current working directory is /app
+        echo "Current Directory for Uvicorn: $(pwd)"
+        echo "PYTHONPATH for Uvicorn: '$PYTHONPATH'" # Should be /app from .env
+        echo "LOG_LEVEL for Uvicorn: '$LOG_LEVEL'" # Should be 'info' (lowercase) from .env
+        
+        # Uvicorn will use LOG_LEVEL from the environment. Ensure it's lowercase 'info', 'debug', etc., in .env
+        /home/venv/bin/python3 -m uvicorn api.main:app --host 0.0.0.0 --port 8000 --log-level "$LOG_LEVEL"
 
   adminer:
     image: adminer
