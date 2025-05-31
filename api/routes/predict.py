@@ -3,10 +3,19 @@ import requests
 from io import BytesIO
 import os
 import json
+import base64
+import types
 from dataclasses import dataclass, asdict
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 import numpy as np
 from api.repositories.match import nearest
+
+try:
+    import openai as _openai
+except Exception:
+    _openai = types.SimpleNamespace()
+
+openai = _openai
 
 router = APIRouter()
 
@@ -21,7 +30,7 @@ class GeoResult:
 
 
 @router.post("/predict")
-async def predict(photo: UploadFile = File(...)):
+async def predict(photo: UploadFile = File(...), mode: Optional[str] = None):
     """Make prediction using the uploaded photo."""
     try:
         allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
@@ -60,6 +69,39 @@ async def predict(photo: UploadFile = File(...)):
                 raise HTTPException(status_code=404, detail="No match found")
 
             geo = GeoResult(lat=row["lat"], lon=row["lon"], score=row.get("score", 0.0))
+
+            if mode == "openai" and geo.score < 0.15:
+                try:
+                    b64 = base64.b64encode(image_data).decode()
+                    resp = openai.ChatCompletion.create(
+                        model="gpt-4o",
+                        messages=[{
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "Where was this photo taken? Reply with a location name.",
+                                },
+                                {
+                                    "type": "image_url",
+                                    "image_url": {"url": f"data:{photo.content_type};base64,{b64}"},
+                                },
+                            ],
+                        }],
+                    )
+                    place = resp["choices"][0]["message"]["content"]
+                    g = requests.get(
+                        "https://nominatim.openstreetmap.org/search",
+                        params={"q": place, "format": "json", "limit": 1},
+                        timeout=10,
+                    )
+                    if g.status_code == 200:
+                        data = g.json()
+                        if isinstance(data, list) and data:
+                            geo.lat = float(data[0]["lat"])
+                            geo.lon = float(data[0]["lon"])
+                except Exception:
+                    pass
 
             return {
                 "status": "success",
