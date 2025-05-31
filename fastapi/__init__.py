@@ -1,6 +1,10 @@
+from starlette.requests import Client as StarletteClient
+
+
 class Request:
-    def __init__(self, body: bytes = b""):
+    def __init__(self, body: bytes = b"", client: StarletteClient | None = None):
         self._body = body
+        self.client = client or StarletteClient()
 
     async def body(self) -> bytes:
         return self._body
@@ -28,6 +32,10 @@ class FastAPI:
             self.router.routes.append(type('Route', (), {'path': path}))
             return func
         return decorator
+
+    def include_router(self, router):
+        for route in getattr(router, 'routes', []):
+            self.router.routes.append(route)
 
 class APIRouter:
     def __init__(self):

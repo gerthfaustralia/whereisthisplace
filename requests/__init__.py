@@ -8,6 +8,17 @@ class Response:
         return self._json
 
 
+class _Exceptions:
+    class ConnectionError(Exception):
+        pass
+
+    class Timeout(Exception):
+        pass
+
+
+exceptions = _Exceptions()
+
+
 def post(url, data=None, timeout=None):
     return Response({"embedding": [0.0]*128})
 
