@@ -5,17 +5,17 @@ FROM pytorch/torchserve:0.10.0-gpu
 USER root
 WORKDIR /app
 
+# Copy Poetry files first for caching
+COPY ../../api/pyproject.toml ./api/
+COPY ../../api/poetry.lock ./api/
+
+RUN pip install --no-cache-dir poetry && \
+    poetry config virtualenvs.create false && \
+    poetry --directory /app/api install --no-dev --no-interaction
+
 # Copy application code
 COPY ../../api /app/api
 COPY ../../ml  /app/ml
-
-# Copy Poetry files
-COPY ../../api/pyproject.toml /app/api/
-COPY ../../api/poetry.lock /app/api/
-
-RUN pip install --no-cache-dir poetry==1.8.3 && \
-    poetry config virtualenvs.create false && \
-    poetry --directory /app/api install --no-interaction --no-ansi --only main --no-root
 
 # Bundle models inside the image
 COPY ../../models/where.mar /model-store/
@@ -30,4 +30,4 @@ RUN mkdir -p /app/config && \
     echo "load_models=where.mar" >> /app/config/config.properties
 
 USER model-server
-CMD ["torchserve", "--start", "--model-store", "/model-store", "--ncs", "--ts-config", "/app/config/config.properties"]
+CMD ["/app/api/docker/start.sh"]
