@@ -9,8 +9,9 @@ help:
 	@echo "  make down        - Stop all services"
 	@echo "  make logs        - Show logs"
 	@echo "  make shell       - Enter backend container"
-	@echo "  make test        - Run tests"
-	@echo "  make clean       - Clean up containers and volumes"
+        @echo "  make test        - Run tests"
+        @echo "  make clean       - Clean up containers and volumes"
+       @echo "  make load_dataset - Load dataset into the database"
 
 # Build Docker images (CPU)
 build:
@@ -57,7 +58,7 @@ shell-gpu:
 
 # Run tests
 test:
-	docker-compose -f docker-compose.cpu.yml exec backend poetry run pytest
+        docker-compose -f docker-compose.cpu.yml exec backend poetry run pytest
 
 test-gpu:
 	docker-compose exec backend poetry run pytest
@@ -74,4 +75,8 @@ db-shell:
 
 # Check health
 health:
-	curl http://localhost:8000/health
+        curl http://localhost:8000/health
+
+# Load dataset
+load_dataset:
+        docker-compose -f docker-compose.cpu.yml run --rm backend python scripts/load_dataset.py

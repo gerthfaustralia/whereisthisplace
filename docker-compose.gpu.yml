@@ -147,6 +147,22 @@ services:
     environment:
       - ADMINER_DEFAULT_SERVER=postgres
 
+  loader:
+    build:
+      context: .
+      dockerfile: api/docker/Dockerfile.cpu
+      target: loader
+    image: where-loader:gpu
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/whereisthisplace}
+    volumes:
+      - ./datasets:/app/datasets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - whereisthisplace-network
+
 volumes:
   postgres_data:
     driver: local
