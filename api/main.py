@@ -6,13 +6,23 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))
 
 from fastapi import FastAPI
+from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from api.routes.predict import router as predict_router
 from api.middleware import EphemeralUploadMiddleware, RateLimitMiddleware
+from api.db import init_db, close_db
 import requests
 import os
 
-app = FastAPI()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db(app)
+    yield
+    await close_db(app)
+
+
+app = FastAPI(lifespan=lifespan)
 
 # Allow all origins for now. The Flutter app will run on a different port
 # during development, so permissive CORS simplifies local testing.
@@ -72,4 +82,7 @@ def health_check():
         "torchserve_models": models_data,
         "message": "API is operational",
     }
+
+
+
 
