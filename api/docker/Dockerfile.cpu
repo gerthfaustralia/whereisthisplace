@@ -1,5 +1,7 @@
 # FastAPI application with CPU-only PyTorch
-FROM python:3.12-slim
+FROM python:3.12-slim AS base
+
+FROM base AS backend
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PYTHONUNBUFFERED=1
@@ -62,3 +64,8 @@ EXPOSE 8000
 # in your docker-compose.cpu.yml.
 # Having a default CMD is still good practice if the image is run standalone.
 CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+
+FROM base AS loader
+WORKDIR /app
+COPY --from=backend /app /app
+CMD ["python", "scripts/load_dataset.py"]

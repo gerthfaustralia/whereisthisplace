@@ -67,6 +67,22 @@ services:
       - where-network
     # platform: linux/amd64 # Uncomment if on ARM if needed.
 
+  loader:
+    build:
+      context: .
+      dockerfile: api/docker/Dockerfile.cpu
+      target: loader
+    image: where-loader:cpu
+    environment:
+      - DATABASE_URL=postgresql://whereuser:wherepass@postgres:5432/whereisthisplace
+    volumes:
+      - ./datasets:/app/datasets:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - where-network
+
 volumes:
   postgres-data: # Defines the named volume for PostgreSQL data persistence
     driver: local
