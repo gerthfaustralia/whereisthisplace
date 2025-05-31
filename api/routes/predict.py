@@ -3,10 +3,21 @@ import requests
 from io import BytesIO
 import os
 import json
+from dataclasses import dataclass, asdict
+from typing import Any, Dict
+import numpy as np
+from api.repositories.match import nearest
 
 router = APIRouter()
 
 TORCHSERVE_URL = os.getenv('TORCHSERVE_URL', 'http://localhost:8080')
+
+
+@dataclass
+class GeoResult:
+    lat: float
+    lon: float
+    score: float
 
 
 @router.post("/predict")
@@ -31,15 +42,30 @@ async def predict(photo: UploadFile = File(...)):
 
         if response.status_code == 200:
             try:
-                prediction_result = response.json()
+                model_result = response.json()
             except json.JSONDecodeError:
-                prediction_result = response.text
+                raise HTTPException(status_code=500, detail="Invalid model response")
+
+            embedding = None
+            if isinstance(model_result, dict):
+                embedding = model_result.get("embedding")
+            if embedding is None and isinstance(model_result, list):
+                embedding = model_result
+            if embedding is None:
+                raise HTTPException(status_code=500, detail="No embedding returned from model")
+
+            vec = np.array(embedding)
+            row = await nearest(vec)
+            if row is None:
+                raise HTTPException(status_code=404, detail="No match found")
+
+            geo = GeoResult(lat=row["lat"], lon=row["lon"], score=row.get("score", 0.0))
 
             return {
                 "status": "success",
                 "filename": photo.filename,
-                "prediction": prediction_result,
-                "message": "Prediction completed successfully"
+                "prediction": asdict(geo),
+                "message": "Prediction completed successfully",
             }
         else:
             raise HTTPException(
