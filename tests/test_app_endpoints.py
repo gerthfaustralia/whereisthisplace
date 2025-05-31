@@ -11,15 +11,8 @@ sys.path.insert(1, str(ROOT / "api"))
 
 import api.main
 from routes.predict import predict
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 import json
-
-
-def get_fresh_client():
-    importlib.reload(api.main)
-    return TestClient(api.main.app)
-
-
 class DummyUploadFile:
     def __init__(self, data: bytes, filename: str = "test.jpg", content_type: str = "image/jpeg"):
         self.data = data
@@ -31,12 +24,16 @@ class DummyUploadFile:
 
 
 def test_health_endpoint_returns_200():
-    client = get_fresh_client()
-    resp = client.get("/health")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data.get("fastapi_status") == "healthy"
-    assert "torchserve_status" in data
+    importlib.reload(api.main)
+    with patch("api.main.init_db", new_callable=AsyncMock), patch(
+        "api.main.close_db", new_callable=AsyncMock
+    ):
+        client = TestClient(api.main.app)
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data.get("fastapi_status") == "healthy"
+        assert "torchserve_status" in data
 
 
 @patch("api.routes.predict.requests.post")
@@ -54,10 +51,14 @@ def test_predict_returns_expected_data(mock_post):
 
 
 def test_rate_limit_returns_429_after_limit_exceeded():
-    client = get_fresh_client()
-    for _ in range(10):
+    importlib.reload(api.main)
+    with patch("api.main.init_db", new_callable=AsyncMock), patch(
+        "api.main.close_db", new_callable=AsyncMock
+    ):
+        client = TestClient(api.main.app)
+        for _ in range(10):
+            resp = client.get("/health")
+            assert resp.status_code == 200
         resp = client.get("/health")
-        assert resp.status_code == 200
-    resp = client.get("/health")
-    assert resp.status_code == 429
+        assert resp.status_code == 429
 
