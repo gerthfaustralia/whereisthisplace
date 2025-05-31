@@ -1,15 +1,40 @@
 #!/usr/bin/env bash
 set -e
 
+CONFIG_FILE="/app/config/config.properties"
+MODEL_STORE="/model-store"
+CONFIG_ARG="" # Initialize CONFIG_ARG
+
+# Check if config file exists and set CONFIG_ARG
+if [ -f "$CONFIG_FILE" ]; then
+    echo "INFO: Using TorchServe config file: $CONFIG_FILE"
+    CONFIG_ARG="--ts-config $CONFIG_FILE"
+else
+    echo "WARNING: Config file not found at $CONFIG_FILE. TorchServe will use command-line model loading or defaults."
+fi
+
 # Start TorchServe in the background
-torchserve --start \
-  --model-store /model-store \
-  --models where=where-v1.mar \
-  --ncs &                       # ncs = no config snapshot
-TS_PID=$!
+echo "INFO: Starting TorchServe..."
+if [ -n "$CONFIG_ARG" ]; then
+    # If config file is specified, it dictates model loading.
+    # Add --disable-token-auth here as well to ensure it's off even if config file tries to enable it.
+    torchserve --start \
+        --model-store "$MODEL_STORE" \
+        $CONFIG_ARG \
+        --disable-token-auth \
+        --ncs &
+else
+    # Fallback: If no config file, explicitly load 'where=where.mar' and disable token auth.
+    echo "INFO: No config file used by TorchServe, attempting to load where=where.mar via command line and disable token auth."
+    torchserve --start \
+        --model-store "$MODEL_STORE" \
+        --models where=where.mar \
+        --disable-token-auth \
+        --ncs &
+fi
 
-# Give it a few seconds to load the model
-sleep 5
+echo "INFO: Waiting for TorchServe to initialize (20 seconds)..."
+sleep 20
 
-# Start FastAPI on 8081
-exec uvicorn api.main:app --host 0.0.0.0 --port 8081
+echo "INFO: Starting FastAPI on port 8000"
+exec uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
