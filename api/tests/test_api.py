@@ -1,5 +1,6 @@
 import sys
 from pathlib import Path
+from unittest.mock import patch, Mock
 import asyncio
 
 API_ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +23,8 @@ def test_app_is_fastapi_instance():
 class DummyUploadFile:
     def __init__(self, data: bytes):
         self.data = data
+        self.filename = "test.jpg"
+        self.content_type = "image/jpeg"
 
     async def read(self) -> bytes:
         return self.data
@@ -29,10 +32,22 @@ class DummyUploadFile:
 
 def test_predict_endpoint_returns_location():
     from routes.predict import predict
-
-    file = DummyUploadFile(b"dummy")
-    data = asyncio.run(predict(photo=file))
-    assert data == {"latitude": 0.0, "longitude": 0.0, "confidence": 0.1}
+    from unittest.mock import patch, Mock
+    
+    # Mock the requests.post call
+    mock_response = Mock()
+    mock_response.status_code = 200
+    mock_response.json.return_value = {"latitude": 0.0, "longitude": 0.0, "confidence": 0.1}
+    
+    with patch('routes.predict.requests.post', return_value=mock_response):
+        file = DummyUploadFile(b"dummy")
+        data = asyncio.run(predict(photo=file))
+        
+        # Check the wrapper structure
+        assert data["status"] == "success"
+        assert data["filename"] == "test.jpg"
+        assert data["message"] == "Prediction completed successfully"
+        assert data["prediction"] == {"latitude": 0.0, "longitude": 0.0, "confidence": 0.1}
 
 
 def test_rate_limit_middleware_added():
