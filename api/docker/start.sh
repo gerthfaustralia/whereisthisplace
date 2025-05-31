@@ -20,5 +20,5 @@ echo "INFO: Waiting for TorchServe to initialize..."
 sleep 15 # Increased sleep slightly, adjust as needed or implement polling
 
 echo "INFO: Starting FastAPI on port 8000"
-# Start FastAPI on port 8000 to avoid conflict with TorchServe's management port (8081)
-exec uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+# Run the API using Poetry's environment
+exec poetry run uvicorn api.main:app --host 0.0.0.0 --port 8000

@@ -21,32 +21,29 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /app
 
 # Install Poetry
-RUN pip install poetry
+RUN pip install --no-cache-dir poetry
 
 # Copy Poetry files from the api directory on the host to the current WORKDIR (/app) in the image
-COPY api/pyproject.toml api/poetry.lock ./
+COPY api/pyproject.toml api/poetry.lock ./api/
 
 # Install dependencies (--no-root to skip installing the project itself)
 # This installs dependencies defined in /app/pyproject.toml
+WORKDIR /app/api
 RUN poetry config virtualenvs.create false && \
-    poetry install --no-interaction --no-ansi --only main --no-root
+    poetry install --no-dev --no-interaction
 
 # Install CPU-only PyTorch, TorchServe, torch-model-archiver, and additional packages
 RUN pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu && \
     pip install \
     torchserve \
-    torch-model-archiver \
-    asyncpg==0.29.0 \
-    psycopg[binary]==3.2.3 \
-    pgvector==0.2.0 \
-    python-multipart
+    torch-model-archiver
 
 # Copy application source code from host to image
 # Host's ./api directory is copied to /app/api in the image
 # Host's ./ml directory is copied to /app/ml in the image
-COPY api/ ./api/
-COPY ml/ ./ml/
-COPY scripts/ ./scripts/
+COPY api/ .
+COPY ml/ /app/ml/
+COPY scripts/ /app/scripts/
 # It's also good practice to copy the start.sh script into the image,
 # though your docker-compose currently runs it from the volume mount.
 # COPY api/docker/start.sh /app/start.sh
@@ -63,7 +60,7 @@ EXPOSE 8000
 # This CMD will be overridden by the 'command: /app/api/docker/start.sh'
 # in your docker-compose.cpu.yml.
 # Having a default CMD is still good practice if the image is run standalone.
-CMD ["uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["/app/api/docker/start.sh"]
 
 FROM base AS loader
 WORKDIR /app
