@@ -1,18 +1,33 @@
 import os
-
 import asyncpg
 from fastapi import FastAPI
 from dotenv import load_dotenv
+
+# NEW → pgvector adapter
+from pgvector.asyncpg import register_vector
 
 load_dotenv()
 
 
 async def init_db(app: FastAPI):
-    """Initialize a connection pool and attach it to the FastAPI app."""
+    """
+    Initialise a connection pool and attach it to the FastAPI app.
+
+    The `register_vector` callback tells asyncpg how to decode/encode
+    the Postgres `vector` type (provided by the pgvector extension).
+    """
     database_url = os.getenv("DATABASE_URL")
     if not database_url:
         raise RuntimeError("DATABASE_URL is not set")
-    app.state.pool = await asyncpg.create_pool(dsn=database_url)
+
+    # `init=` is run once for every new connection in the pool
+    app.state.pool = await asyncpg.create_pool(
+        dsn=database_url,
+        init=register_vector,     # ← critical line
+        # optional pool sizing (tweak to your needs)
+        # min_size=1,
+        # max_size=10,
+    )
     return app.state.pool
 
 
