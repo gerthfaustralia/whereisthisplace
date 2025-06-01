@@ -5,7 +5,7 @@ version: "3.9"
 ####################
 volumes:
   pgdata:            # persistent Postgres data
-  model-store:       # TorchServe .mar files and snapshots
+  model-store:       # TorchServe .mar files & snapshots
 
 ####################
 #  N E T W O R K   #
@@ -27,23 +27,23 @@ services:
     image: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
     restart: unless-stopped
 
-    # -------- ENV -------- #
-    env_file: .env          # holds MAPBOX_TOKEN, DB creds, LOG_LEVEL, etc.
+    # ---- ENV ---- #
+    env_file: .env
     environment:
       - PYTHONPATH=/app
       - TZ=UTC
 
-    # -------- COMMAND ------ #
+    # ---- STARTUP ---- #
     command: ["/bin/bash", "-c", |
       set -e
 
-      # Install small runtime deps that Poetry leaves out
+      # runtime deps missing from the slim Poetry export
       /home/venv/bin/pip install --no-cache-dir \
           "uvicorn[standard]" fastapi python-multipart psycopg[binary] requests
 
-      # -------- TorchServe ---------- #
+      # ---------- TorchServe ----------- #
       ts_cfg="${TORCHSERVE_CONFIG_FILE:-/app/config/config.properties}"
-      test -f "$ts_cfg" || { echo "WARN  $ts_cfg not found, starting without custom config"; ts_cfg=""; }
+      test -f "$ts_cfg" || { echo "WARN  $ts_cfg not found; starting without custom config"; ts_cfg=""; }
 
       torchserve --start --ncs \
                  --model-store /model-store \
@@ -51,32 +51,37 @@ services:
                  ${ts_cfg:+--ts-config "$ts_cfg"}
 
       # give TorchServe a head-start
-      sleep 25
+      sleep 30
 
-      # -------- FastAPI ------------- #
+      # ---------- FastAPI --------------- #
       exec /home/venv/bin/uvicorn api.main:app \
            --host 0.0.0.0 --port 8000 --log-level "${LOG_LEVEL:-info}"
     ]
 
-    # -------- PORTS -------- #
+    # ---- PORTS ---- #
     ports:
       - "8000:8000"   # FastAPI
       - "8080:8080"   # TorchServe inference
       - "8081:8081"   # TorchServe management
       - "8082:8082"   # TorchServe metrics
 
-    # -------- GPU --------- #
-    deploy:                                 # picked up by docker-compose as well
+    # ---- GPU ---- #
+    deploy:
       resources:
         reservations:
           devices:
             - driver: nvidia
               count: all
-              capabilities: [gpu]          # enable every visible GPU  :contentReference[oaicite:0]{index=0}
+              capabilities: [gpu]
 
+    # ---- MOUNTS ---- #
     volumes:
       - model-store:/model-store
-      - ./config:/app/config:ro            # custom TorchServe & app settings
+      - ./config:/app/config:ro
+      - ./ml:/app/ml:ro
+      - ./scripts:/app/scripts:ro
+      - ./models:/app/models:ro
+      - ./logs:/app/logs
 
     depends_on:
       postgres:
@@ -85,15 +90,15 @@ services:
       - whereisthisplace-network
 
   # ------------------------ #
-  # Lightweight Postgres 16  #
+  # Postgres 16 + pgvector   #
   # ------------------------ #
   postgres:
     container_name: where-postgres
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     restart: unless-stopped
     environment:
-      POSTGRES_DB:     ${POSTGRES_DB:-where}
-      POSTGRES_USER:   ${POSTGRES_USER:-where}
+      POSTGRES_DB:       ${POSTGRES_DB:-where}
+      POSTGRES_USER:     ${POSTGRES_USER:-where}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-where}
     volumes:
       - pgdata:/var/lib/postgresql/data
