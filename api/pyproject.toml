@@ -1,6 +1,7 @@
 [tool.poetry]
 name = "whereisthisplace-api" # Renamed for clarity, was "api" from your [project] section
 version = "0.1.0"
+package-mode = false
 description = "API for the WhereIsThisPlace project" # Please fill in a meaningful description
 authors = ["Your Name <you@example.com>"] # Use your actual name and email
 package-mode = false
@@ -44,9 +45,11 @@ requests = "^2.31.0"
 #   You *can* try adding it here (e.g., `faiss-gpu = "<desired_version>"`), but it might complicate dependency resolution.
 #   If it's only used by the model served in TorchServe (within the .mar file) and not directly by your API's Python code,
 #   TorchServe's environment would handle it.
+alembic = ">=1.13,<2.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.5"
+alembic = ">=1.13,<2.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"] # Using >=1.0.0 for broader compatibility, your >=2.0.0 is also fine.
