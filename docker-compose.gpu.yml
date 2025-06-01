@@ -41,8 +41,10 @@ services:
         set -e
 
         # runtime deps missing from the slim Poetry export
+        # runtime deps missing from the slim Poetry export
         /home/venv/bin/pip install --no-cache-dir \
-            "uvicorn[standard]" fastapi python-multipart psycopg[binary] requests
+          "uvicorn[standard]" fastapi python-multipart psycopg[binary] **asyncpg** requests
+
 
         # ---------- TorchServe ----------- #
         ts_cfg="${TORCHSERVE_CONFIG_FILE:-/app/config/config.properties}"
