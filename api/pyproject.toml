@@ -4,6 +4,7 @@ version = "0.1.0"
 package-mode = false
 description = "API for the WhereIsThisPlace project" # Please fill in a meaningful description
 authors = ["Your Name <you@example.com>"] # Use your actual name and email
+package-mode = false
 readme = "README.md"
 # Optional: If your Python package code for the API is directly under "api/"
 # and you want Poetry to recognize it as a package named "api_package_name", you might add:
@@ -22,12 +23,16 @@ fastapi = ">=0.115.12,<0.116.0"
 uvicorn = {version = ">=0.34.2,<0.35.0", extras = ["standard"]}
 httpx = ">=0.28.1,<0.29.0"
 python-dotenv = ">=1.1.0,<2.0.0"
+pydantic-settings = "^2.2"
+alembic = "^1.13"
 
 # Additional runtime dependencies identified from Dockerfile/error messages
 python-multipart = "^0.0.5" # For FastAPI file uploads
 asyncpg = "^0.29.0"          # For async PostgreSQL interaction
 psycopg2-binary = "^2.9.9"
-pgvector = "^0.4"        # For pgvector support with psycopg
+sqlalchemy = ">=2.0"
+geoalchemy2 = ">=0.14"
+pgvector = {version = "~0.2", extras = ["sqlalchemy"]}
 requests = "^2.31.0"
 
 # Note on ML/GPU related packages:
