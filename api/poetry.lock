@@ -499,13 +499,14 @@ files = [
 
 [[package]]
 name = "pgvector"
-version = "0.2.5"
+version = "0.4.1"
 description = "pgvector support for Python"
 optional = false
-python-versions = ">=3.8"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
-    {file = "pgvector-0.2.5-py2.py3-none-any.whl", hash = "sha256:5e5e93ec4d3c45ab1fa388729d56c602f6966296e19deee8878928c6d567e41b"},
+    {file = "pgvector-0.4.1-py3-none-any.whl", hash = "sha256:34bb4e99e1b13d08a2fe82dda9f860f15ddcd0166fbb25bffe15821cbfeb7362"},
+    {file = "pgvector-0.4.1.tar.gz", hash = "sha256:83d3a1c044ff0c2f1e95d13dfb625beb0b65506cfec0941bfe81fd0ad44f4003"},
 ]
 
 [package.dependencies]
@@ -1254,4 +1255,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.9"
-content-hash = "b2615112c07cc91bc0db648836fc6874c54ac027da0784b5895e5895a5443643"
+content-hash = "f250da8458e553966b9b5a36d9c5a415d18f87d3480a32677ee404e637d7b238"
