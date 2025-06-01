@@ -11,7 +11,7 @@ COPY ../../api/poetry.lock ./api/
 
 RUN pip install --no-cache-dir poetry && \
     poetry config virtualenvs.create false && \
-    poetry --directory /app/api install --without dev --no-interaction
+    poetry --directory /app/api install --without dev --no-interaction --no-root
 
 # Copy application code
 COPY ../../api /app/api
