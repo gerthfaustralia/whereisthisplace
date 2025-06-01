@@ -68,6 +68,7 @@ jobs:
         context: .                                # repo root
         file:   ./api/docker/Dockerfile.gpu      # Path to your GPU Dockerfile
         push:   true                             # Will push since this workflow triggers on 'main'
+        no-cache: true
         tags: |
           ${{ env.IMAGE_NAME }}:${{ github.sha }}
           ${{ env.IMAGE_NAME }}:latest
