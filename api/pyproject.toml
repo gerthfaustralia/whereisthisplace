@@ -1,56 +1,32 @@
 [tool.poetry]
-name = "whereisthisplace-api" # Renamed for clarity, was "api" from your [project] section
-version = "0.1.0"
-package-mode = false
-description = "API for the WhereIsThisPlace project" # Please fill in a meaningful description
-authors = ["Your Name <you@example.com>"] # Use your actual name and email
-package-mode = false
-readme = "README.md"
-# Optional: If your Python package code for the API is directly under "api/"
-# and you want Poetry to recognize it as a package named "api_package_name", you might add:
-# packages = [{include = "api_package_name", from = "."}]
-# Or if your main code is in a subfolder like "api/src/my_api_module"
-# packages = [{include = "my_api_module", from = "src"}]
-# For a simple layout where 'api/api/' contains your code, this might not be strictly needed
-# if PYTHONPATH is handled correctly, but explicit is often better.
+name        = "whereisthisplace-api"
+version     = "0.1.0"
+description = "API for the WhereIsThisPlace project"
+authors     = ["Felix Grüner <you@example.com>"]
+readme      = "README.md"
+
+# package the code in api/api/…
+packages    = [{ include = "api", from = "." }]
 
 [tool.poetry.dependencies]
-python = "^3.9"
-
-# Dependencies from your original [project] section
-fastapi = ">=0.115.12,<0.116.0"
-# Ensure uvicorn includes 'standard' extras if your app relies on them
-uvicorn = {version = ">=0.34.2,<0.35.0", extras = ["standard"]}
-httpx = ">=0.28.1,<0.29.0"
-python-dotenv = ">=1.1.0,<2.0.0"
+python            = "^3.9"
+fastapi           = ">=0.115.12,<0.116.0"
+uvicorn           = { version = ">=0.34.2,<0.35.0", extras = ["standard"] }
+httpx             = ">=0.28.1,<0.29.0"
+python-dotenv     = ">=1.1.0,<2.0.0"
 pydantic-settings = "^2.2"
-alembic = "^1.13"
-
-# Additional runtime dependencies identified from Dockerfile/error messages
-python-multipart = "^0.0.5" # For FastAPI file uploads
-asyncpg = "^0.29.0"          # For async PostgreSQL interaction
-psycopg2-binary = "^2.9.9"
-sqlalchemy = ">=2.0"
-geoalchemy2 = ">=0.14"
-pgvector = {version = "~0.2", extras = ["sqlalchemy"]}
-requests = "^2.31.0"
-
-# Note on ML/GPU related packages:
-# - torch, torchvision: These are typically provided by your base Docker image (pytorch/torchserve:0.10.0-gpu).
-#   If your API code *directly* imports and uses specific versions of torch/torchvision
-#   that might conflict or differ from the base image, you might need to list them.
-#   However, usually, you rely on the versions in the TorchServe environment.
-# - faiss-gpu: This is often best installed via a direct `pip install faiss-gpu` in your Dockerfile
-#   due to its complex build requirements and CUDA compatibility.
-#   You *can* try adding it here (e.g., `faiss-gpu = "<desired_version>"`), but it might complicate dependency resolution.
-#   If it's only used by the model served in TorchServe (within the .mar file) and not directly by your API's Python code,
-#   TorchServe's environment would handle it.
-alembic = ">=1.13,<2.0"
+alembic           = "^1.13"
+python-multipart  = "^0.0.5"
+asyncpg           = "^0.29.0"
+psycopg2-binary   = "^2.9.9"
+sqlalchemy        = ">=2.0"
+geoalchemy2       = ">=0.14"
+pgvector          = { version = "~0.2", extras = ["sqlalchemy"] }
+requests          = "^2.31.0"
 
 [tool.poetry.group.dev.dependencies]
-pytest = "^8.3.5"
-alembic = ">=1.13,<2.0"
+pytest  = "^8.3.5"
 
 [build-system]
-requires = ["poetry-core>=1.0.0"] # Using >=1.0.0 for broader compatibility, your >=2.0.0 is also fine.
+requires      = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
