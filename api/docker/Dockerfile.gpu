@@ -1,6 +1,9 @@
 # WhereIsThisPlace GPU backend image
 FROM pytorch/torchserve:0.10.0-gpu
 
+# Add build arg to bust cache
+ARG CACHEBUST=1
+
 # Install Poetry and project dependencies
 USER root
 WORKDIR /app
@@ -9,7 +12,9 @@ WORKDIR /app
 COPY ../../api/pyproject.toml ./api/
 COPY ../../api/poetry.lock ./api/
 
-RUN pip install --no-cache-dir poetry && \
+# Force rebuild by adding CACHEBUST
+RUN echo "Cache bust: $CACHEBUST" && \
+    pip install --no-cache-dir poetry && \
     poetry config virtualenvs.create false && \
     poetry --directory /app/api install --without dev --no-interaction --no-root
 
