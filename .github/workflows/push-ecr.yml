@@ -1,70 +1,66 @@
 name: Build & Push backend image to ECR
+
 on:
   push:
-    branches: [ main ]
+    branches: [main]           # adapt if you use a different default branch
     paths:
       - "api/**"
       - "ml/**"
       - "models/**"
       - ".github/workflows/push-ecr.yml"
-  workflow_dispatch:
-permissions:
-  contents: read # Needs to be 'read' for checkout
-  # If you switch to OIDC for AWS, you might need:
-  # id-token: write
+  workflow_dispatch:           # manual trigger
+
 env:
   AWS_REGION: eu-central-1
   IMAGE_NAME: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read           # only code checkout required
+
     steps:
-    - name: Checkout Repository with LFS
+    - name: Checkout repository (incl. LFS)
       uses: actions/checkout@v4
       with:
-        lfs: true # ----- THIS IS THE CRUCIAL ADDITION FOR LFS FILES -----
-    # Debugging step: Verify model files and .dockerignore content
-    - name: Verify Model Files and .dockerignore
+        lfs: true
+
+    # ---- OPTIONAL: quick integrity check – keep or drop as you like ----
+    - name: Verify model artefacts are present
       run: |
-        echo "Current directory: $(pwd)"
-        echo "Listing models directory (models/):"
+        echo "listing models/ …"
         ls -lh models/
-        echo "-------------------------------------"
-        echo "Checking where.mar details:"
-        ls -l models/where.mar || echo "WARNING: models/where.mar not found by ls"
-        echo "-------------------------------------"
-        echo "Checking mapillary_WPCA128.pth.tar details:"
-        ls -l models/mapillary_WPCA128.pth.tar || echo "WARNING: models/mapillary_WPCA128.pth.tar not found by ls"
-        echo "-------------------------------------"
-        echo "Contents of .dockerignore (if it exists):"
-        cat .dockerignore || echo ".dockerignore not found or not readable"
-        echo "-------------------------------------"
-    # ---- AWS credentials via access keys ----
+        echo "listing .dockerignore …"
+        cat .dockerignore || true
+    # -------------------------------------------------------------------
+
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region:            ${{ env.AWS_REGION }}
+
     - name: Login to Amazon ECR
-      id: login-ecr # Added an id here for potential use, though not strictly necessary for this step alone
       uses: aws-actions/amazon-ecr-login@v2
-    # Optional: Set up Docker Buildx for potentially faster and more advanced builds
+
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
+
     - name: Build & push Docker image
       uses: docker/build-push-action@v5
       with:
-        context: .                                # repo root
-        file:   ./api/docker/Dockerfile.gpu      # Path to your GPU Dockerfile
-        push:   true                             # Will push since this workflow triggers on 'main'
+        context: .
+        file:    ./api/docker/Dockerfile.gpu
+        push:    true
         build-args: |
-          CACHEBUST=${{ github.sha }}
+          CACHEBUST=${{ github.sha }}   # <- forces Poetry layer rebuild
         tags: |
           ${{ env.IMAGE_NAME }}:${{ github.sha }}
           ${{ env.IMAGE_NAME }}:latest
-        # Enabling Docker layer caching with GitHub Actions cache
         cache-from: type=gha
-        cache-to: type=gha,mode=max
-    - name: Image digest
-      run: echo "Pushed ${{ env.IMAGE_NAME }}:latest and ${{ env.IMAGE_NAME }}:${{ github.sha }}"
+        cache-to:   type=gha,mode=max
+
+    - name: Show resulting image digest
+      run: echo "Pushed ${{ env.IMAGE_NAME }}:${{ github.sha }} and :latest"
