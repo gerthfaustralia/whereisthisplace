@@ -21,4 +21,4 @@ sleep 15 # Increased sleep slightly, adjust as needed or implement polling
 
 echo "INFO: Starting FastAPI on port 8000"
 # Run the API using Poetry's environment
-exec poetry run uvicorn api.main:app --host 0.0.0.0 --port 8000
+exec uvicorn api.main:app --host 0.0.0.0 --port 8000
