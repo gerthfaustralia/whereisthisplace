@@ -1,89 +1,106 @@
-version: '3.8'
+version: "3.9"
 
+####################
+#  V O L U M E S   #
+####################
+volumes:
+  pgdata:            # persistent Postgres data
+  model-store:       # TorchServe .mar files and snapshots
+
+####################
+#  N E T W O R K   #
+####################
+networks:
+  whereisthisplace-network:
+    driver: bridge
+
+####################
+#   S E R V I C E S #
+####################
 services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: where-postgres
+
+  # ------------------------------------------- #
+  # GPU-enabled backend (TorchServe + FastAPI)  #
+  # ------------------------------------------- #
+  backend:
+    container_name: where-backend-gpu
+    image: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
+    restart: unless-stopped
+
+    # -------- ENV -------- #
+    env_file: .env          # holds MAPBOX_TOKEN, DB creds, LOG_LEVEL, etc.
     environment:
-      # These can also be moved to .env if you prefer consistency
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: whereisthisplace
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql # Ensure this init script is suitable
+      - PYTHONPATH=/app
+      - TZ=UTC
+
+    # -------- COMMAND ------ #
+    command: ["/bin/bash", "-c", |
+      set -e
+
+      # Install small runtime deps that Poetry leaves out
+      /home/venv/bin/pip install --no-cache-dir \
+          "uvicorn[standard]" fastapi python-multipart psycopg[binary] requests
+
+      # -------- TorchServe ---------- #
+      ts_cfg="${TORCHSERVE_CONFIG_FILE:-/app/config/config.properties}"
+      test -f "$ts_cfg" || { echo "WARN  $ts_cfg not found, starting without custom config"; ts_cfg=""; }
+
+      torchserve --start --ncs \
+                 --model-store /model-store \
+                 --models all \
+                 ${ts_cfg:+--ts-config "$ts_cfg"}
+
+      # give TorchServe a head-start
+      sleep 25
+
+      # -------- FastAPI ------------- #
+      exec /home/venv/bin/uvicorn api.main:app \
+           --host 0.0.0.0 --port 8000 --log-level "${LOG_LEVEL:-info}"
+    ]
+
+    # -------- PORTS -------- #
     ports:
-      - "5432:5432"
+      - "8000:8000"   # FastAPI
+      - "8080:8080"   # TorchServe inference
+      - "8081:8081"   # TorchServe management
+      - "8082:8082"   # TorchServe metrics
+
+    # -------- GPU --------- #
+    deploy:                                 # picked up by docker-compose as well
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]          # enable every visible GPU  :contentReference[oaicite:0]{index=0}
+
+    volumes:
+      - model-store:/model-store
+      - ./config:/app/config:ro            # custom TorchServe & app settings
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - whereisthisplace-network
+
+  # ------------------------ #
+  # Lightweight Postgres 16  #
+  # ------------------------ #
+  postgres:
+    container_name: where-postgres
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:     ${POSTGRES_DB:-where}
+      POSTGRES_USER:   ${POSTGRES_USER:-where}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-where}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - whereisthisplace-network
-
-  backend:
-    image: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
-    container_name: where-backend-gpu
-    runtime: nvidia
-    # Variables like PYTHONPATH, TORCHSERVE_CONFIG_FILE, LOG_LEVEL, MAPBOX_TOKEN
-    # will be sourced from the .env file and made available to the container's environment.
-    environment:
-      NVIDIA_VISIBLE_DEVICES: all
-      PYTHONUNBUFFERED: 1
-      # If DATABASE_URL and TORCHSERVE_URL are in your .env, you can remove them from here.
-      # Otherwise, these provide defaults if not in .env (Compose substitutes ${...} from .env first).
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/whereisthisplace}
-      TORCHSERVE_URL: ${TORCHSERVE_URL:-http://localhost:8080}
-    volumes:
-      # - ./api:/app/api:rw  # REMOVED: API code now comes from the Docker image.
-      - ./ml:/app/ml:rw      # Mount local ./ml to /app/ml; remove if ML files are also in image and not to be overwritten.
-      - ./scripts:/app/scripts:rw # Mount local ./scripts; remove if scripts are also in image and not to be overwritten.
-      - ./logs:/app/logs:rw      # Mount host logs directory to persist container logs.
-      # - ./models:/model-store:ro # Uncomment if you want to mount models from host instead of using those in the image.
-      - ./config:/app/config:ro   # CRITICAL: Mounts host's ./config directory to /app/config for config.properties.
-    ports:
-      - "8000:8000" # FastAPI
-      - "8080:8080" # TorchServe inference
-      - "8081:8081" # TorchServe management
-      - "8082:8082" # TorchServe metrics
-    depends_on:
-      postgres:
-        condition: service_healthy
-    command: /app/api/docker/start.sh
-
-  adminer:
-    image: adminer
-    container_name: where-adminer
-    ports:
-      - "8090:8080"
-    depends_on:
-      - postgres
-    networks:
-      - whereisthisplace-network
-    environment:
-      - ADMINER_DEFAULT_SERVER=postgres
-
-  loader:
-    build:
-      context: .
-      dockerfile: api/docker/Dockerfile.cpu
-      target: loader
-    image: where-loader:gpu
-    environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/whereisthisplace}
-    volumes:
-      - ./datasets:/app/datasets:ro
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - whereisthisplace-network
-
-volumes:
-  postgres_data:
-    driver: local
-
-networks:
-  whereisthisplace-network:
-    driver: bridge
