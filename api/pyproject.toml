@@ -3,6 +3,7 @@ name = "whereisthisplace-api" # Renamed for clarity, was "api" from your [projec
 version = "0.1.0"
 description = "API for the WhereIsThisPlace project" # Please fill in a meaningful description
 authors = ["Your Name <you@example.com>"] # Use your actual name and email
+package-mode = false
 readme = "README.md"
 # Optional: If your Python package code for the API is directly under "api/"
 # and you want Poetry to recognize it as a package named "api_package_name", you might add:

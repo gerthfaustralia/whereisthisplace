@@ -1,1 +1,0 @@
-# Minimal pgvector stub
