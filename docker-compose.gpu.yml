@@ -1,78 +1,117 @@
-version: "3.9"
+version: "3.8"
 
-####################
-#  V O L U M E S   #
-####################
 volumes:
-  pgdata:            # persistent Postgres data
-  model-store:       # TorchServe .mar files & snapshots
+  postgres-data:
+  model-store:
 
-####################
-#  N E T W O R K   #
-####################
 networks:
-  whereisthisplace-network:
+  where-network:
     driver: bridge
 
-####################
-#   S E R V I C E S #
-####################
 services:
-
-  # ------------------------------------------- #
-  # GPU-enabled backend (TorchServe + FastAPI)  #
-  # ------------------------------------------- #
-  backend:
-    container_name: where-backend-gpu
-    image: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
+  postgres:
+    image: ghcr.io/tensorchord/pgvector-postgis:16-3.4
+    # Or, if you built your custom image with Dockerfile.postgis-vector:
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.postgis-vector
+    # image: whereisthisplace-custom-postgres:latest
+    container_name: where-postgres
     restart: unless-stopped
-
-    ## ENV ##
-    env_file: .env
     environment:
-      - PYTHONPATH=/app
-      - TZ=UTC
+      POSTGRES_USER: where       # From your .env or hardcoded if preferred
+      POSTGRES_PASSWORD: where   # From your .env or hardcoded if preferred
+      POSTGRES_DB: whereisthisplace # From your .env or hardcoded if preferred
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - where-network
 
-    ## STARTUP ##
+  backend:
+    build:
+      context: . # Assuming Dockerfile.gpu is in the same directory as this compose file
+                 # If api/Dockerfile.gpu, change context to ./api and dockerfile to Dockerfile.gpu
+      dockerfile: Dockerfile.gpu
+    # If using a pre-built ECR image, comment out 'build:' and uncomment 'image:':
+    # image: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
+    container_name: where-backend
+    restart: unless-stopped
+    env_file:
+      - .env # For DATABASE_URL, LOG_LEVEL, TORCHSERVE_CONFIG_FILE etc.
+    environment:
+      # PYTHONPATH should point to the directory *containing* your top-level 'api' package.
+      # If your project structure in the container is /app/api/api/ (where the inner 'api' is the package)
+      # and your pyproject.toml is in /app/api/, then PYTHONPATH=/app/api is usually correct
+      # as poetry/uvicorn run from /app/api.
+      PYTHONPATH: /app/api
+      TZ: UTC
+    depends_on:
+      postgres:
+        condition: service_healthy
     command:
-      - /bin/bash
-      - -c
-      - |
+      - "/bin/bash"
+      - "-c"
+      - | # Start of the multi-line script. Ensure lines below are indented more than this line.
         set -e
+        echo "=== backend start ==="
+        echo "Current directory: $(pwd)" # Should be /app (or your WORKDIR)
 
-        # runtime deps missing from the slim Poetry export
-        # runtime deps missing from the slim Poetry export
-        /home/venv/bin/pip install --no-cache-dir \
-          "uvicorn[standard]" fastapi python-multipart psycopg[binary] asyncpg requests
+        # Navigate to the directory containing pyproject.toml for poetry commands
+        # This was established as /app/api where your poetry project for the api lives.
+        cd /app/api
 
+        echo "Ensuring poetry is configured and installing/verifying dependencies in $(pwd)..."
+        # poetry config virtualenvs.create false --local || echo "Poetry config virtualenvs.create failed or not applicable"
+        # Install project and dev dependencies. Removing --no-root ensures the 'api' package itself is importable.
+        poetry install --with dev --no-interaction
 
-        # ---------- TorchServe ----------- #
-        ts_cfg="${TORCHSERVE_CONFIG_FILE:-/app/config/config.properties}"
-        if [ ! -f "$ts_cfg" ]; then
-          echo "WARN  $ts_cfg not found; starting without custom config"
-          ts_cfg=""
+        echo "DATABASE_URL from env: $DATABASE_URL" # For debugging
+        if [ -z "$DATABASE_URL" ]; then
+          echo "ERROR: DATABASE_URL is not set! Please check .env file."
+          exit 1
         fi
 
-        torchserve --start --ncs \
-                   --model-store /model-store \
-                   --models all \
-                   ${ts_cfg:+--ts-config "$ts_cfg"}
+        echo "Running Alembic migrations..."
+        poetry run alembic upgrade head
 
-        # give TorchServe a head-start
+        echo "Attempting to start TorchServe..."
+        ts_cfg_arg=""
+        if [ -n "$TORCHSERVE_CONFIG_FILE" ] && [ -f "$TORCHSERVE_CONFIG_FILE" ]; then
+          ts_cfg_arg="--ts-config $TORCHSERVE_CONFIG_FILE"
+        elif [ -n "$TORCHSERVE_CONFIG_FILE" ]; then
+          echo "Warning: TORCHSERVE_CONFIG_FILE is set to $TORCHSERVE_CONFIG_FILE but file not found."
+        fi
+        torchserve --start --ncs --model-store /model-store --models all $ts_cfg_arg &
+        
+        echo "Waiting for TorchServe to initialize (sleep 30s)..."
         sleep 30
-
-        # ---------- FastAPI --------------- #
-        exec /home/venv/bin/uvicorn api.main:app \
-             --host 0.0.0.0 --port 8000 --log-level "${LOG_LEVEL:-info}"
-
-    ## PORTS ##
+        
+        echo "Starting FastAPI application..."
+        exec poetry run uvicorn api.main:app --host 0.0.0.0 --port 8000 --log-level ${LOG_LEVEL:-info}
     ports:
-      - "8000:8000"   # FastAPI
-      - "8080:8080"   # TorchServe inference
-      - "8081:8081"   # TorchServe management
-      - "8082:8082"   # TorchServe metrics
-
-    ## GPU ##
+      - "8000:8000"
+      - "8080:8080"
+      - "8081:8081"
+      - "8082:8082"
+    volumes:
+      - model-store:/model-store
+      # Mount your local ./api directory to /app/api inside the container for development.
+      # This implies your Dockerfile's WORKDIR is /app, and it copies your API project into /app/api.
+      # Or, if WORKDIR is /app/api, then your pyproject.toml should be at the root of that.
+      # Assuming your pyproject.toml for the 'api' service is in ./api locally:
+      - ./api:/app/api:rw
+      - ./config:/app/config:ro # If you have a local ./config directory
+      - ./ml:/app/ml:ro
+      - ./scripts:/app/scripts:ro
+      - ./models:/app/models:ro
+      - ./logs/backend:/app/logs # Ensure /app/logs is where the app is configured to write
     deploy:
       resources:
         reservations:
@@ -80,39 +119,3 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-
-    ## MOUNTS ##
-    volumes:
-      - model-store:/model-store
-      - ./config:/app/config:ro
-      - ./ml:/app/ml:ro
-      - ./scripts:/app/scripts:ro
-      - ./models:/app/models:ro
-      - ./logs:/app/logs
-
-    depends_on:
-      postgres:
-        condition: service_healthy
-    networks:
-      - whereisthisplace-network
-
-  # ------------------------ #
-  # Postgres 16 + pgvector   #
-  # ------------------------ #
-  postgres:
-    container_name: where-postgres
-    image: pgvector/pgvector:pg16
-    restart: unless-stopped
-    environment:
-      POSTGRES_DB:       ${POSTGRES_DB:-where}
-      POSTGRES_USER:     ${POSTGRES_USER:-where}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-where}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - whereisthisplace-network
