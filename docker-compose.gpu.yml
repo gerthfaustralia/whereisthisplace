@@ -2,9 +2,7 @@ version: '3.8'
 
 services:
   postgres:
-    build:
-      context: .
-      dockerfile: Dockerfile.postgres
+    image: pgvector/pgvector:pg16
     container_name: where-postgres
     environment:
       POSTGRES_USER: postgres
@@ -12,9 +10,12 @@ services:
       POSTGRES_DB: whereisthisplace
       POSTGRES_INITDB_ARGS: "--auth-host=md5"
     command: >
-      postgres 
+      bash -c "
+      apt-get update && 
+      apt-get install -y postgresql-16-postgis-3 && 
+      docker-entrypoint.sh postgres 
       -c max_connections=200
-      -c shared_buffers=256MB
+      -c shared_buffers=256MB"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
@@ -30,7 +31,7 @@ services:
       - whereisthisplace-network
 
   backend:
-    image: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
+    image: where-backend:schema-fix
     container_name: where-backend-gpu
     runtime: nvidia
     environment:
