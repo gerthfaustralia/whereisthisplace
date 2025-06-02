@@ -6,7 +6,7 @@ services:
     container_name: where-postgres
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: wherepass
       POSTGRES_DB: whereisthisplace
       POSTGRES_INITDB_ARGS: "--auth-host=md5"
     command: >
@@ -37,7 +37,7 @@ services:
     environment:
       NVIDIA_VISIBLE_DEVICES: all
       PYTHONUNBUFFERED: "1"
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:postgres@postgres:5432/whereisthisplace}
+      DATABASE_URL: ${DATABASE_URL:-postgresql://whereuser:wherepass@postgres:5432/whereisthisplace}
       TORCHSERVE_URL: ${TORCHSERVE_URL:-http://localhost:8080}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PYTHONPATH: /app
