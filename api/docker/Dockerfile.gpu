@@ -8,23 +8,28 @@ ARG CACHEBUST=1
 USER root
 WORKDIR /app
 
-# Copy Poetry files first for caching
-COPY ../../api/pyproject.toml ./api/
-COPY ../../api/poetry.lock ./api/
-
-# Force rebuild by adding CACHEBUST
+# Install required Python packages directly with pip
 RUN echo "Cache bust: $CACHEBUST" && \
-    pip install --no-cache-dir poetry && \
-    poetry config virtualenvs.create false && \
-    poetry --directory /app/api install --without dev --no-interaction --no-root
+    pip install --no-cache-dir \
+    "requests>=2.31.0" \
+    "fastapi>=0.100.0" \
+    "uvicorn>=0.23.0" \
+    "psycopg2-binary>=2.9.0" \
+    "asyncpg>=0.29.0" \
+    "python-multipart>=0.0.6" \
+    "python-dotenv>=1.0.0" \
+    "pgvector>=0.2.0"
 
 # Copy application code
-COPY ../../api /app/api
-COPY ../../ml  /app/ml
+COPY api/ /app/api/
 
-# Bundle models inside the image
-COPY ../../models/where.mar /model-store/
-COPY ../../models/mapillary_WPCA128.pth.tar /model-store/
+# Create model store and copy any models that exist
+RUN mkdir -p /model-store
+COPY models/ /model-store/
+
+# Copy ML code
+RUN mkdir -p /app/ml
+COPY ml/ /app/ml/
 
 # Provide fallback TorchServe configuration
 RUN mkdir -p /app/config && \
@@ -32,7 +37,9 @@ RUN mkdir -p /app/config && \
     echo "management_address=http://0.0.0.0:8081" >> /app/config/config.properties && \
     echo "metrics_address=http://0.0.0.0:8082" >> /app/config/config.properties && \
     echo "model_store=/model-store" >> /app/config/config.properties && \
-    echo "load_models=where.mar" >> /app/config/config.properties
+    echo "load_models=all" >> /app/config/config.properties
 
 USER model-server
-CMD ["/app/api/docker/start.sh"]
+
+# Start both TorchServe and FastAPI
+CMD ["bash", "-c", "torchserve --start --ncs --model-store /model-store --models all --ts-config /app/config/config.properties & sleep 30 && cd /app && python -m uvicorn api.main:app --host 0.0.0.0 --port 8000"]
