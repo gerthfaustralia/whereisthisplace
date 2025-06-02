@@ -1,4 +1,3 @@
-cat > scripts/create-user.sql << 'EOF'
 -- Create application user with superuser privileges
 DO $$
 BEGIN
@@ -42,4 +41,3 @@ GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO whereuser;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA whereisthisplace TO whereuser;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA whereisthisplace TO whereuser;
 GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA whereisthisplace TO whereuser;
-EOF
