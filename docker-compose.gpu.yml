@@ -2,7 +2,9 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgis/postgis:16-3.4
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
     container_name: where-postgres
     environment:
       POSTGRES_USER: postgres
@@ -11,7 +13,6 @@ services:
       POSTGRES_INITDB_ARGS: "--auth-host=md5"
     command: >
       postgres 
-      -c shared_preload_libraries=postgis-3,vector
       -c max_connections=200
       -c shared_buffers=256MB
     volumes:
