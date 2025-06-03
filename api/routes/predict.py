@@ -25,6 +25,21 @@ except Exception:
 
 openai = _openai
 
+# Configure OpenAI credentials from environment if available
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+if OPENAI_API_KEY:
+    try:
+        openai.api_key = OPENAI_API_KEY
+    except Exception:
+        pass
+
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
+if OPENAI_BASE_URL:
+    try:
+        openai.base_url = OPENAI_BASE_URL
+    except Exception:
+        pass
+
 router = APIRouter()
 
 TORCHSERVE_URL = os.getenv('TORCHSERVE_URL', 'http://localhost:8080')
