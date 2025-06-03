@@ -8,17 +8,16 @@ ARG CACHEBUST=1
 USER root
 WORKDIR /app
 
-# Install required Python packages directly with pip
+# Copy Poetry files first (for better Docker layer caching)
+COPY pyproject.toml poetry.lock ./
+
+# Install Poetry
 RUN echo "Cache bust: $CACHEBUST" && \
-    pip install --no-cache-dir \
-    "requests>=2.31.0" \
-    "fastapi>=0.100.0" \
-    "uvicorn>=0.23.0" \
-    "psycopg2-binary>=2.9.0" \
-    "asyncpg>=0.29.0" \
-    "python-multipart>=0.0.6" \
-    "python-dotenv>=1.0.0" \
-    "pgvector>=0.2.0"
+    pip install --no-cache-dir poetry
+
+# Configure Poetry and install dependencies
+RUN poetry config virtualenvs.create false && \
+    poetry install --only=main --no-dev
 
 # Copy application code
 COPY api/ /app/api/
