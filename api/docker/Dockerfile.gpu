@@ -4,29 +4,38 @@ FROM pytorch/torchserve:0.10.0-gpu
 # Add build arg to bust cache
 ARG CACHEBUST=1
 
-# Install Poetry and project dependencies
+# Set Python path for the application
+ENV PYTHONPATH /app
+
 USER root
 WORKDIR /app
 
-# Copy Poetry files first (for better Docker layer caching)
-COPY pyproject.toml poetry.lock ./
+# Copy Poetry files to the API package root within /app
+COPY api/pyproject.toml /app/api/pyproject.toml
+COPY api/poetry.lock /app/api/poetry.lock
 
 # Install Poetry
 RUN echo "Cache bust: $CACHEBUST" && \
     pip install --no-cache-dir poetry
 
-# Configure Poetry and install dependencies
+# Configure Poetry and install dependencies for the project in /app/api
+# virtualenvs.create false ensures packages are installed in a way that's
+# accessible to the system python in the image, which uvicorn will use.
 RUN poetry config virtualenvs.create false && \
-    poetry install --only=main --no-dev
+    poetry --directory /app/api install --only main --no-interaction --no-root
 
-# Copy application code
+# Copy application code from host's api/ directory to container's /app/api/ directory
+# This means your actual FastAPI app (e.g., main.py) should be in repo_root/api/main.py
+# or repo_root/api/api/main.py.
+# If main.py is in repo_root/api/api/main.py, then the Uvicorn command would be api.api.main:app
+# If main.py is in repo_root/api/main.py, then the Uvicorn command is api.main:app (as you have it)
 COPY api/ /app/api/
 
-# Create model store and copy any models that exist
+# Create model store and copy any models that exist from host's models/ directory
 RUN mkdir -p /model-store
 COPY models/ /model-store/
 
-# Copy ML code
+# Copy ML code from host's ml/ directory
 RUN mkdir -p /app/ml
 COPY ml/ /app/ml/
 
@@ -41,4 +50,5 @@ RUN mkdir -p /app/config && \
 USER model-server
 
 # Start both TorchServe and FastAPI
+# The `cd /app` is important so that `api.main` can be found if PYTHONPATH includes /app.
 CMD ["bash", "-c", "torchserve --start --ncs --model-store /model-store --models all --ts-config /app/config/config.properties & sleep 30 && cd /app && python -m uvicorn api.main:app --host 0.0.0.0 --port 8000"]
