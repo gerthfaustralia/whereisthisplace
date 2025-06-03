@@ -1,17 +1,3 @@
-CREATE EXTENSION IF NOT EXISTS vector;
-
-CREATE TABLE IF NOT EXISTS photos (
-    id SERIAL PRIMARY KEY,
-    lat DOUBLE PRECISION NOT NULL,
-    lon DOUBLE PRECISION NOT NULL,
-    confidence DOUBLE PRECISION DEFAULT 0.0,
-    vlad vector(128),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE INDEX IF NOT EXISTS idx_photos_created_at ON photos (created_at DESC);
-cd ~/myarchive
-cat > scripts/init-db.sql << 'EOF'
 -- Enable required extensions
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -85,9 +71,3 @@ CREATE TABLE IF NOT EXISTS uploaded_images (
 
 CREATE INDEX IF NOT EXISTS idx_uploaded_images_upload_time ON uploaded_images (upload_time);
 CREATE INDEX IF NOT EXISTS idx_uploaded_images_file_hash ON uploaded_images (file_hash);
-
--- Grant permissions (adjust as needed)
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA whereisthisplace TO whereuser;
-GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA whereisthisplace TO whereuser;
-GRANT ALL PRIVILEGES ON SCHEMA whereisthisplace TO whereuser;
-EOF
