@@ -1,4 +1,9 @@
-from starlette.requests import Client as StarletteClient
+try:
+    from starlette.requests import Client as StarletteClient
+except Exception:  # pragma: no cover - fallback for tests without starlette stub
+    class StarletteClient:
+        def __init__(self, host: str = "test"):
+            self.host = host
 
 
 class Request:

@@ -25,7 +25,8 @@ async def nearest(vec: np.ndarray) -> Optional[asyncpg.Record]:
     if not database_url:
         raise RuntimeError("DATABASE_URL is not set")
 
-    conn = await asyncpg.connect(dsn=database_url, init=init_connection)
+    conn = await asyncpg.connect(dsn=database_url)
+    await init_connection(conn)
     try:
         row = await conn.fetchrow(
             "SELECT lat, lon, 1 - (vlad <#> $1) AS score "
