@@ -10,6 +10,14 @@ from typing import Any, Dict, Optional
 import numpy as np
 from api.repositories.match import nearest
 
+
+async def query_geo(vec: np.ndarray) -> "GeoResult":
+    """Return geographic coordinates for a PatchNetVLAD embedding."""
+    row = await nearest(vec)
+    if row is None:
+        raise HTTPException(status_code=404, detail="No match found")
+    return GeoResult(lat=row["lat"], lon=row["lon"], score=row.get("score", 0.0))
+
 try:
     import openai as _openai
 except Exception:
@@ -64,11 +72,7 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None):
                 raise HTTPException(status_code=500, detail="No embedding returned from model")
 
             vec = np.array(embedding)
-            row = await nearest(vec)
-            if row is None:
-                raise HTTPException(status_code=404, detail="No match found")
-
-            geo = GeoResult(lat=row["lat"], lon=row["lon"], score=row.get("score", 0.0))
+            geo = await query_geo(vec)
 
             if mode == "openai" and geo.score < 0.15:
                 try:
