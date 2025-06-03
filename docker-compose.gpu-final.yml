@@ -31,7 +31,7 @@ services:
       - whereisthisplace-network
 
   backend:
-    image: where-backend:schema-fix
+    image: where-backend:latest
     container_name: where-backend-gpu
     runtime: nvidia
     environment:

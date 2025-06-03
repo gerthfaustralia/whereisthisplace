@@ -1,4 +1,4 @@
-import sys
+cdimport sys
 from pathlib import Path
 from unittest.mock import patch
 
