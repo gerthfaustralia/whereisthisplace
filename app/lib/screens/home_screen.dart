@@ -42,19 +42,49 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _loading = true;
     });
-    final geo = context.read<GeoProvider>();
-    final engine = context.read<SettingsProvider>().engine;
-    final result = await geo.locate(File(_image!.path), engine);
-    if (!mounted) return;
-    setState(() {
-      _loading = false;
-    });
-    if (!mounted) return;
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => ResultScreen(result: result),
-      ),
-    );
+    
+    try {
+      final geo = context.read<GeoProvider>();
+      final engine = context.read<SettingsProvider>().engine;
+      print('🚀 Starting location request with engine: ${engine.name}');
+      
+      final result = await geo.locate(File(_image!.path), engine);
+      
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+      });
+      
+      print('🚀 Location result: lat=${result.latitude}, lon=${result.longitude}, confidence=${result.confidence}');
+      
+      if (!mounted) return;
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => ResultScreen(result: result),
+        ),
+      );
+    } catch (e) {
+      print('❌ Location error: $e');
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+      });
+      
+      // Show error dialog
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Error'),
+          content: Text('Failed to get location: $e'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   Widget _buildImagePreview() {
