@@ -60,7 +60,15 @@ class Api {
     if (resp.statusCode != 200) {
       throw Exception('API error ${resp.statusCode}: ${resp.body}');
     }
-    return ResultModel.fromJson(jsonDecode(resp.body));
+    
+    try {
+      final decodedJson = jsonDecode(resp.body);
+      print('🚀 Decoded JSON: $decodedJson');
+      return ResultModel.fromJson(decodedJson);
+    } catch (e) {
+      print('❌ JSON parsing error: $e');
+      throw Exception('Failed to parse response: $e');
+    }
   }
 
   static Future<bool> isHealthy() async {
