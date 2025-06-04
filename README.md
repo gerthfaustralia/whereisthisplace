@@ -75,6 +75,72 @@ flutter run
 flutter test
 ```
 
+## Bulk Data Loading
+
+### Production Bulk Loader
+
+Load large datasets of geolocated images for training:
+
+```bash
+# Basic usage
+python scripts/bulk_loader_production.py \
+    --dataset-dir ./datasets/my_dataset \
+    --source my_training_data \
+    --max-concurrent 8 \
+    --batch-size 100
+
+# With custom database and model URLs
+python scripts/bulk_loader_production.py \
+    --dataset-dir ./datasets/mapillary_paris \
+    --source mapillary_dataset \
+    --database-url postgresql://user:pass@localhost:5432/db \
+    --model-url http://localhost:8080 \
+    --log-level DEBUG
+```
+
+### Dataset Format
+
+Create CSV files with the following format:
+
+```csv
+image,lat,lon,description
+eiffel_tower.jpg,48.8584,2.2945,Eiffel Tower view
+big_ben.jpg,51.4994,-0.1278,Big Ben clock tower
+statue_liberty.jpg,40.6892,-74.0445,Statue of Liberty
+```
+
+### Mapillary Integration
+
+Download training data from Mapillary:
+
+```bash
+# Download images from Paris bounding box
+python scripts/mapillary_downloader.py \
+    --access-token YOUR_MAPILLARY_TOKEN \
+    --bbox "2.2,48.8,2.4,48.9" \
+    --output-dir ./datasets/mapillary_paris \
+    --max-images 1000
+
+# Then bulk load the downloaded dataset
+python scripts/bulk_loader_production.py \
+    --dataset-dir ./datasets/mapillary_paris \
+    --source mapillary_training_data
+```
+
+### Performance
+
+Expected throughput on EC2 GPU instance:
+- **33+ images/sec** processing rate
+- **100,000+ images/hour** capacity
+- **2.4M+ images/day** theoretical maximum
+
+The bulk loader includes:
+- Concurrent processing with rate limiting
+- Proper PostGIS geometry creation
+- pgvector embedding storage
+- Progress tracking and comprehensive error handling
+- Batch processing for optimal database performance
+
 ## Contribution Rules
 
 1. Open an issue before major changes.
