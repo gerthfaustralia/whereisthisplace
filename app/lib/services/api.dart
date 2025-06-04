@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io' show File, Platform;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart' as http_parser;
 
 import 'package:app/models/result_model.dart';
 import 'package:app/models/engine.dart';
@@ -26,11 +27,35 @@ class Api {
     if (engine == Engine.openai) {
       uri = uri.replace(queryParameters: {'mode': 'openai'});
     }
-    final req = http.MultipartRequest('POST', uri)
-      ..files.add(await http.MultipartFile.fromPath('photo', image.path));
+    
+    // Debug logging
+    print('🚀 API Request URL: $uri');
+    print('🚀 Engine mode: ${engine.queryValue}');
+    print('🚀 Image path: ${image.path}');
+    print('🚀 Image exists: ${await image.exists()}');
+    
+    final req = http.MultipartRequest('POST', uri);
+    
+    try {
+      // Explicitly set content type to ensure backend accepts it
+      final multipartFile = await http.MultipartFile.fromPath(
+        'photo', 
+        image.path,
+        contentType: http_parser.MediaType('image', 'jpeg'),
+      );
+      print('🚀 MultipartFile created: ${multipartFile.filename}, length: ${multipartFile.length}, contentType: ${multipartFile.contentType}');
+      req.files.add(multipartFile);
+    } catch (e) {
+      print('❌ Error creating MultipartFile: $e');
+      throw Exception('Failed to create multipart file: $e');
+    }
 
     final streamed = await req.send();
     final resp = await http.Response.fromStream(streamed);
+    
+    // Debug response
+    print('🚀 Response status: ${resp.statusCode}');
+    print('🚀 Response body: ${resp.body}');
 
     if (resp.statusCode != 200) {
       throw Exception('API error ${resp.statusCode}: ${resp.body}');
