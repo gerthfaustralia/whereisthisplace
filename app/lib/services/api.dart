@@ -3,24 +3,29 @@ import 'dart:io' show File, Platform;
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:http/http.dart' as http;
 
-import 'package:app/models/result_model.dart';   // ← use the existing model
+import 'package:app/models/result_model.dart';
+import 'package:app/models/engine.dart';
 
 /* ---------- endpoint selection ---------- */
-const _prodHost = '18.184.4.124';
+const _backendHost = String.fromEnvironment('BACKEND_HOST', defaultValue: '52.28.72.57');
 const _androidEmulatorHost = '10.0.2.2';
 
 final String _baseUrl = (() {
-  if (!kDebugMode) return 'http://$_prodHost:8000';
-  return Platform.isAndroid ? 'http://$_androidEmulatorHost:8000'
-                            : 'http://$_prodHost:8000';
+  final host = kDebugMode && Platform.isAndroid
+      ? _androidEmulatorHost
+      : _backendHost;
+  return 'http://$host:8000';
 })();
 
 /* ---------- API service ---------- */
 class Api {
   Api._();
 
-  static Future<ResultModel> locate(File image) async {
-    final uri = Uri.parse('$_baseUrl/predict');
+  static Future<ResultModel> locate(File image, Engine engine) async {
+    var uri = Uri.parse('$_baseUrl/predict');
+    if (engine == Engine.openai) {
+      uri = uri.replace(queryParameters: {'mode': 'openai'});
+    }
     final req = http.MultipartRequest('POST', uri)
       ..files.add(await http.MultipartFile.fromPath('photo', image.path));
 

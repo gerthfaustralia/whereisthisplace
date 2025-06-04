@@ -1,10 +1,11 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/engine.dart';
 
 class SettingsProvider extends ChangeNotifier {
-  static const _sendToLlmKey = 'send_to_llm';
-  bool _sendToLlm = false;
-  bool get sendToLlm => _sendToLlm;
+  static const _engineKey = 'engine';
+  Engine _engine = Engine.defaultEngine;
+  Engine get engine => _engine;
 
   SettingsProvider() {
     _load();
@@ -12,14 +13,15 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    _sendToLlm = prefs.getBool(_sendToLlmKey) ?? false;
+    final stored = prefs.getString(_engineKey);
+    _engine = stored == 'openai' ? Engine.openai : Engine.defaultEngine;
     notifyListeners();
   }
 
-  Future<void> toggleSendToLlm(bool value) async {
-    _sendToLlm = value;
+  Future<void> setEngine(Engine value) async {
+    _engine = value;
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_sendToLlmKey, value);
+    await prefs.setString(_engineKey, value.queryValue);
     notifyListeners();
   }
 }

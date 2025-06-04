@@ -7,7 +7,7 @@ import 'dart:typed_data';
 import 'package:app/main.dart';
 import 'package:app/screens/home_screen.dart';
 import 'package:app/screens/settings.dart';
-import 'package:app/services/api.dart';
+import 'package:app/models/engine.dart';
 import 'package:app/providers/geo_provider.dart';
 import 'package:app/providers/locale_provider.dart';
 import 'package:app/providers/settings_provider.dart';
@@ -31,10 +31,12 @@ void main() {
 
   testWidgets('Navigate from home to result page', (WidgetTester tester) async {
     final key = GlobalKey();
-    final api = _FakeApi();
     await tester.pumpWidget(
-      ChangeNotifierProvider(
-        create: (_) => GeoProvider(api),
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider(create: (_) => GeoProvider(_fakeLocate)),
+          ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ],
         child: MaterialApp(
           localizationsDelegates: const [
             AppLocalizationsDelegate(),
@@ -63,9 +65,6 @@ void main() {
 
 }
 
-class _FakeApi extends Api {
-  @override
-  Future<ResultModel> locate(File file) async {
-    return ResultModel(latitude: 1, longitude: 2, confidence: 0.5);
-  }
+Future<ResultModel> _fakeLocate(File file, Engine engine) async {
+  return ResultModel(latitude: 1, longitude: 2, confidence: 0.5);
 }

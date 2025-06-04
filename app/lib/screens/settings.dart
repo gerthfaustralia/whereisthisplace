@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/locale_provider.dart';
 import '../l10n/app_localizations.dart';
+import '../models/engine.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -16,11 +17,24 @@ class SettingsScreen extends StatelessWidget {
       appBar: AppBar(title: Text(AppLocalizations.of(context).settings)),
       body: ListView(
         children: [
-          SwitchListTile(
-            key: const Key('send_to_llm_toggle'),
-            title: const Text('Send to OpenAI LLM'),
-            value: settings.sendToLlm,
-            onChanged: settings.toggleSendToLlm,
+          ListTile(
+            title: DropdownButton<Engine>(
+              key: const Key('engine_dropdown'),
+              value: settings.engine,
+              items: const [
+                DropdownMenuItem(
+                  value: Engine.defaultEngine,
+                  child: Text('Default'),
+                ),
+                DropdownMenuItem(
+                  value: Engine.openai,
+                  child: Text('OpenAI'),
+                ),
+              ],
+              onChanged: (engine) {
+                if (engine != null) settings.setEngine(engine);
+              },
+            ),
           ),
           ListTile(
             title: DropdownButton<Locale>(
