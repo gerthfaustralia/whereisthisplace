@@ -7,10 +7,12 @@ class ResultModel {
   ResultModel({required this.latitude, required this.longitude, required this.confidence});
 
   factory ResultModel.fromJson(Map<String, dynamic> json) {
+    // Handle the actual API response format: {status, filename, prediction: {lat, lon, score}, message}
+    final prediction = json['prediction'] as Map<String, dynamic>;
     return ResultModel(
-      latitude: (json['latitude'] as num).toDouble(),
-      longitude: (json['longitude'] as num).toDouble(),
-      confidence: (json['confidence'] as num).toDouble(),
+      latitude: (prediction['lat'] as num).toDouble(),
+      longitude: (prediction['lon'] as num).toDouble(), 
+      confidence: (prediction['score'] as num).toDouble(),
     );
   }
 }

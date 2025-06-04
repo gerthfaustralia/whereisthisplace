@@ -60,7 +60,13 @@ class _MapWidgetState extends State<MapWidget> {
   @override
   void initState() {
     super.initState();
-    const String MAPBOX_ACCESS_TOKEN = 'pk.eyJ1IjoiZmVsaXhncnVlbmVyIiwiYSI6ImNtYXR2dXIwaDB2YjEyanNod2duemdjMnoifQ._ZPv79B7Ud5CfUSdbBn3Ww';
+    // Use environment variable or fallback to provided token
+    const String MAPBOX_ACCESS_TOKEN = String.fromEnvironment(
+      'MAPBOX_TOKEN', 
+      defaultValue: 'pk.eyJ1IjoiZmVsaXhncnVlbmVyIiwiYSI6ImNtYXR2dXIwaDB2YjEyanNod2duemdjMnoifQ._ZPv79B7Ud5CfUSdbBn3Ww'
+    );
+    
+    print('🗺️ Setting Mapbox token: ${MAPBOX_ACCESS_TOKEN.substring(0, 20)}...');
     mapbox.MapboxOptions.setAccessToken(MAPBOX_ACCESS_TOKEN);
     print('Mapbox token set');
   }
