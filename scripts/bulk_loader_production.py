@@ -30,6 +30,7 @@ import time
 import logging
 from pathlib import Path
 from typing import Dict, List, Optional
+import numpy as np
 from pgvector.asyncpg import register_vector
 
 logging.basicConfig(
@@ -98,17 +99,20 @@ class ProductionBulkLoader:
                     self.stats['errors'] += 1
                     self.error_log.append(f'{filename}: No embedding in response')
                     return False
+                
+                # Convert embedding list to numpy array for pgvector compatibility
+                embedding_vector = np.array(embedding, dtype=np.float32)
                     
                 embed_time = time.time() - embed_start
                 self.stats['total_embedding_time'] += embed_time
                 
-                # Insert into database with proper geometry
+                # Insert into database with proper geometry and pgvector format
                 db_start = time.time()
                 async with self.pool.acquire() as conn:
                     await conn.execute('''
                         INSERT INTO training_images (filename, lat, lon, geom, vlad, source, metadata) 
                         VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($3, $2), 4326), $4, $5, $6)
-                    ''', filename, lat, lon, embedding, source, json.dumps(metadata) if metadata else None)
+                    ''', filename, lat, lon, embedding_vector, source, json.dumps(metadata) if metadata else None)
                 
                 db_time = time.time() - db_start
                 self.stats['total_db_time'] += db_time
@@ -125,6 +129,30 @@ class ProductionBulkLoader:
                 return False
             finally:
                 self.stats['processed'] += 1
+
+    async def process_images_simple(self, csv_data: List[Dict], source: str):
+        """Process images sequentially with progress tracking - simplified approach"""
+        logger.info(f'Processing {len(csv_data)} images sequentially')
+        
+        for i, item in enumerate(csv_data, 1):
+            image_path = Path(item['image_path'])
+            success = await self.process_image(
+                image_path,
+                item['filename'],
+                item['lat'],
+                item['lon'],
+                source,
+                item.get('metadata')
+            )
+            
+            # Progress reporting every 10 images
+            if i % 10 == 0 or i == len(csv_data):
+                success_rate = (self.stats['successful'] / self.stats['processed']) * 100 if self.stats['processed'] > 0 else 0
+                throughput = self.stats['successful'] / (time.time() - self.start_time) * 3600 if hasattr(self, 'start_time') else 0
+                
+                logger.info(f'Progress: {i}/{len(csv_data)} | Success: {self.stats["successful"]} | '
+                           f'Errors: {self.stats["errors"]} | Rate: {success_rate:.1f}% | '
+                           f'Throughput: {throughput:.0f}/hour')
                 
     async def process_batch(self, batch_data: List[Dict], source: str):
         """Process a batch of images concurrently"""
@@ -144,18 +172,16 @@ class ProductionBulkLoader:
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
             
-    async def load_from_csv(self, csv_path: Path, source: str):
-        """Load images from a CSV file in batches"""
+    async def load_from_csv(self, csv_path: Path, source: str, use_simple_processing: bool = True):
+        """Load images from a CSV file"""
         logger.info(f'Loading from CSV: {csv_path}')
         
-        batch = []
-        total_rows = 0
+        csv_data = []
         
         with open(csv_path, 'r') as f:
             reader = csv.DictReader(f)
             
             for row in reader:
-                total_rows += 1
                 image_path = csv_path.parent / row['image']
                 
                 batch_item = {
@@ -168,11 +194,22 @@ class ProductionBulkLoader:
                         'csv_source': str(csv_path.name)
                     }
                 }
-                batch.append(batch_item)
+                csv_data.append(batch_item)
+        
+        if use_simple_processing:
+            # Use simple sequential processing for reliability
+            await self.process_images_simple(csv_data, source)
+        else:
+            # Use batch processing (original logic)
+            batch = []
+            total_rows = len(csv_data)
+            
+            for i, item in enumerate(csv_data):
+                batch.append(item)
                 
                 # Process batch when it reaches batch_size
-                if len(batch) >= self.batch_size:
-                    batch_num = (total_rows // self.batch_size) + 1
+                if len(batch) >= self.batch_size or i == total_rows - 1:
+                    batch_num = (i // self.batch_size) + 1
                     await self.process_batch(batch, source)
                     success_rate = (self.stats['successful'] / self.stats['processed']) * 100 if self.stats['processed'] > 0 else 0
                     throughput = self.stats['successful'] / (time.time() - self.start_time) * 3600 if hasattr(self, 'start_time') else 0
@@ -181,14 +218,10 @@ class ProductionBulkLoader:
                                f'Skipped: {self.stats["skipped"]} | Errors: {self.stats["errors"]} | '
                                f'Rate: {success_rate:.1f}% | Throughput: {throughput:.0f}/hour')
                     batch = []
-            
-            # Process remaining items
-            if batch:
-                await self.process_batch(batch, source)
         
         logger.info(f'Completed {csv_path.name}: {self.stats["successful"]} images loaded')
         
-    async def run(self, dataset_dir: str, source: str = 'bulk_load'):
+    async def run(self, dataset_dir: str, source: str = 'bulk_load', use_simple_processing: bool = True):
         """Main execution function"""
         self.start_time = time.time()
         await self.init_pool()
@@ -207,7 +240,7 @@ class ProductionBulkLoader:
         # Process each CSV file
         for csv_file in csv_files:
             logger.info(f'\nProcessing CSV: {csv_file.name}')
-            await self.load_from_csv(csv_file, source)
+            await self.load_from_csv(csv_file, source, use_simple_processing)
             
         elapsed = time.time() - self.start_time
         
@@ -245,6 +278,8 @@ if __name__ == '__main__':
     parser.add_argument('--source', default='bulk_load', help='Source label for database')
     parser.add_argument('--max-concurrent', type=int, default=8, help='Max concurrent processing')
     parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing')
+    parser.add_argument('--use-batch-processing', action='store_true', 
+                        help='Use batch processing instead of simple sequential processing')
     parser.add_argument('--database-url', 
                         default='postgresql://whereuser:wherepass@postgres:5432/whereisthisplace',
                         help='Database connection string')
@@ -266,7 +301,11 @@ if __name__ == '__main__':
     )
     
     try:
-        asyncio.run(loader.run(args.dataset_dir, args.source))
+        asyncio.run(loader.run(
+            args.dataset_dir, 
+            args.source, 
+            use_simple_processing=not args.use_batch_processing
+        ))
     except KeyboardInterrupt:
         logger.info('Interrupted by user')
     except Exception as e:
