@@ -1,0 +1,16 @@
+{
+  "target_bbox": [
+    2.5,
+    48.7,
+    2.9,
+    49.0
+  ],
+  "bbox_string": "2.5,48.7,2.9,49.0",
+  "requested_images": 100,
+  "api_results": 1000,
+  "bbox_filtered": 100,
+  "successfully_downloaded": 100,
+  "download_errors": 0,
+  "filtering_effectiveness": "10.0%",
+  "download_time": 32.576953172683716
+}
