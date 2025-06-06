@@ -17,7 +17,6 @@ services:
       -c max_connections=200
       -c shared_buffers=256MB"
     volumes:
-      - ./datasets:/app/datasets:rw
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init-db.sql
       - ./scripts/create-user.sql:/docker-entrypoint-initdb.d/02-create-user.sql
@@ -45,6 +44,7 @@ services:
       TORCHSERVE_CONFIG_FILE: /app/config/config.properties
       MAPBOX_TOKEN: ${MAPBOX_TOKEN:-YOUR_MAPBOX_TOKEN_HERE}
     volumes:
+      - ./datasets:/app/datasets:rw
       - ./ml:/app/ml:rw
       - ./scripts:/app/scripts:rw
       - ./logs:/app/logs:rw
