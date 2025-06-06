@@ -1,6 +1,6 @@
 from geoalchemy2 import Geometry
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Column, Integer, Float
+from sqlalchemy import Column, Integer, Float, String
 
 from . import Base
 
@@ -14,3 +14,7 @@ class Photo(Base):
 
     geom = Column(Geometry(geometry_type="POINT", srid=4326))
     vlad = Column(Vector(128))
+
+    score = Column(Float)
+    bias_warning = Column(String)
+    source = Column(String)

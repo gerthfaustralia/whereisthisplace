@@ -2,6 +2,7 @@ import sys
 from pathlib import Path
 import asyncio
 from unittest.mock import patch, AsyncMock
+import types
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -18,14 +19,20 @@ class DummyUploadFile:
     async def read(self) -> bytes:
         return self.data
 
+
+class DummyRequest:
+    def __init__(self):
+        self.app = types.SimpleNamespace(state=types.SimpleNamespace(pool="pool"))
+
 def load_test_image() -> bytes:
     with open(ROOT / "eiffel.jpg", "rb") as f:
         return f.read()
 
+@patch("routes.predict.insert_prediction", new_callable=AsyncMock)
 @patch("routes.predict.OPENAI_API_KEY", None)
 @patch("routes.predict.nearest", new_callable=AsyncMock)
 @patch("routes.predict.requests.post")
-def test_eiffel_bias_detection_detailed(mock_post, mock_nearest):
+def test_eiffel_bias_detection_detailed(mock_post, mock_nearest, mock_insert):
     """
     Detailed test for Eiffel Tower bias detection that verifies Definition of Done.
     
@@ -37,8 +44,9 @@ def test_eiffel_bias_detection_detailed(mock_post, mock_nearest):
 
     image_data = load_test_image()
     file = DummyUploadFile(image_data, filename="eiffel.jpg")
+    req = DummyRequest()
 
-    result = asyncio.run(predict(photo=file))
+    result = asyncio.run(predict(photo=file, request=req))
     prediction = result["prediction"]
 
     print("=== Eiffel Tower Bias Detection Test Results ===")
@@ -68,6 +76,7 @@ def test_eiffel_bias_detection_detailed(mock_post, mock_nearest):
     
     assert has_bias_warning, "bias_warning field should be present"
     assert low_confidence, f"Score should be < 0.4, got {score}"
+    mock_insert.assert_awaited_once()
     
     print("\n✅ All Definition of Done requirements met!")
 
