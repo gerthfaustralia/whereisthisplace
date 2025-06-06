@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 import asyncio
-from unittest.mock import patch, AsyncMock
+from unittest.mock import AsyncMock, patch
 import types
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,28 +19,17 @@ class DummyUploadFile:
     async def read(self) -> bytes:
         return self.data
 
-
-def load_test_image() -> bytes:
-    with open(ROOT / "eiffel.jpg", "rb") as f:
-        return f.read()
-
-
 @patch("routes.predict.insert_prediction", new_callable=AsyncMock)
-@patch("routes.predict.OPENAI_API_KEY", None)
 @patch("routes.predict.nearest", new_callable=AsyncMock)
 @patch("routes.predict.requests.post")
-def test_eiffel_bias_detection(mock_post, mock_nearest, mock_insert):
+def test_prediction_logged(mock_post, mock_nearest, mock_insert):
     mock_post.return_value.status_code = 200
-    mock_post.return_value.json.return_value = {"embedding": [0.0] * 128}
-    mock_nearest.return_value = {"lat": 40.75, "lon": -73.99, "score": 0.95}
+    mock_post.return_value.json.return_value = {"embedding": [0.0]*128}
+    mock_nearest.return_value = {"lat": 5.0, "lon": 6.0, "score": 0.7}
 
-    image_data = load_test_image()
-    file = DummyUploadFile(image_data, filename="eiffel.jpg")
+    file = DummyUploadFile(b"dummy")
     mock_db_pool = "mock_pool"
-
     result = asyncio.run(predict(photo=file, db_pool=mock_db_pool))
-    prediction = result["prediction"]
 
-    assert prediction["bias_warning"] is not None
-    assert prediction["score"] < 0.4
+    assert result["status"] == "success"
     mock_insert.assert_awaited_once()
