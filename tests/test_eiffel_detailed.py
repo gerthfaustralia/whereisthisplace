@@ -3,11 +3,11 @@ from pathlib import Path
 import asyncio
 from unittest.mock import patch, AsyncMock
 
-ROOT = Path(__file__).resolve().parents[0]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(1, str(ROOT / "api"))
 
-from api.routes.predict import predict
+from routes.predict import predict
 
 class DummyUploadFile:
     def __init__(self, data: bytes, filename: str = "test.jpg", content_type: str = "image/jpeg"):
@@ -22,10 +22,15 @@ def load_test_image() -> bytes:
     with open(ROOT / "eiffel.jpg", "rb") as f:
         return f.read()
 
-@patch("api.routes.predict.OPENAI_API_KEY", None)
-@patch("api.routes.predict.nearest", new_callable=AsyncMock)
-@patch("api.routes.predict.requests.post")
-def test_eiffel_bias_detection(mock_post, mock_nearest):
+@patch("routes.predict.OPENAI_API_KEY", None)
+@patch("routes.predict.nearest", new_callable=AsyncMock)
+@patch("routes.predict.requests.post")
+def test_eiffel_bias_detection_detailed(mock_post, mock_nearest):
+    """
+    Detailed test for Eiffel Tower bias detection that verifies Definition of Done.
+    
+    Definition of Done: Unit test: Eiffel.jpg now returns bias_warning field and confidence < 0.4.
+    """
     mock_post.return_value.status_code = 200
     mock_post.return_value.json.return_value = {"embedding": [0.0] * 128}
     mock_nearest.return_value = {"lat": 40.75, "lon": -73.99, "score": 0.95}
@@ -67,4 +72,4 @@ def test_eiffel_bias_detection(mock_post, mock_nearest):
     print("\n✅ All Definition of Done requirements met!")
 
 if __name__ == "__main__":
-    test_eiffel_bias_detection() 
+    test_eiffel_bias_detection_detailed() 
