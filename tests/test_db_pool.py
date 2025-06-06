@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 from unittest.mock import patch
 
@@ -28,8 +29,11 @@ class DummyPool:
 async def test_pool_returns_connection(mock_create_pool):
     mock_create_pool.return_value = DummyPool()
     app = FastAPI()
-    await init_db(app)
-    conn = await app.state.pool.acquire()
-    assert conn == "conn"
-    await close_db(app)
-    assert app.state.pool.closed
+    
+    # Mock the DATABASE_URL environment variable
+    with patch.dict('os.environ', {'DATABASE_URL': 'postgresql://test:test@localhost/testdb'}):
+        await init_db(app)
+        conn = await app.state.pool.acquire()
+        assert conn == "conn"
+        await close_db(app)
+        assert app.state.pool.closed

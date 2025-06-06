@@ -44,12 +44,21 @@ def test_predict_returns_expected_data(mock_post, mock_nearest):
     mock_nearest.return_value = {"lat": 1.0, "lon": 2.0, "score": 0.5}
     file = DummyUploadFile(b"dummy")
     result = asyncio.run(predict(photo=file))
-    assert result == {
-        "status": "success",
-        "filename": "test.jpg",
-        "prediction": {"lat": 1.0, "lon": 2.0, "score": 0.5},
-        "message": "Prediction completed successfully",
-    }
+    
+    # Check main structure
+    assert result["status"] == "success"
+    assert result["filename"] == "test.jpg"
+    assert result["message"] == "Prediction completed successfully"
+    
+    # Check prediction structure with new fields
+    prediction = result["prediction"]
+    assert prediction["lat"] == 1.0
+    assert prediction["lon"] == 2.0
+    assert prediction["score"] == 0.5
+    assert prediction["confidence_level"] == "medium"  # 0.5 score = medium confidence
+    assert "bias_warning" in prediction
+    assert "source" in prediction
+    assert prediction["source"] == "model"
 
 
 def test_rate_limit_returns_429_after_limit_exceeded():

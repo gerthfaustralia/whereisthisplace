@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 import asyncio
 from unittest.mock import patch, AsyncMock
@@ -24,6 +25,7 @@ class DummyOpenAI:
         def create(*args, **kwargs):
             return {"choices": [{"message": {"content": "Paris, France"}}]}
 
+@patch("routes.predict.OPENAI_API_KEY", "test_key")  # Mock the OPENAI_API_KEY constant
 @patch("routes.predict.requests.get")
 @patch("routes.predict.openai", new=DummyOpenAI)
 @patch("routes.predict.nearest", new_callable=AsyncMock)
@@ -38,9 +40,16 @@ def test_openai_mode_fallback(mock_post, mock_nearest, mock_get):
     file = DummyUploadFile(b"dummy")
     result = asyncio.run(predict(photo=file, mode="openai"))
 
-    assert result == {
-        "status": "success",
-        "filename": "test.jpg",
-        "prediction": {"lat": 48.8, "lon": 2.3, "score": 0.1},
-        "message": "Prediction completed successfully",
-    }
+    # Check main structure
+    assert result["status"] == "success"
+    assert result["filename"] == "test.jpg"
+    assert result["message"] == "Prediction completed successfully"
+    
+    # The prediction should show OpenAI coordinates due to fallback
+    prediction = result["prediction"]
+    assert prediction["lat"] == 48.8
+    assert prediction["lon"] == 2.3
+    assert prediction["score"] == 0.95  # OpenAI result has high confidence
+    assert prediction["source"] == "openai"
+    assert prediction["confidence_level"] == "high"
+    assert "bias_warning" in prediction
