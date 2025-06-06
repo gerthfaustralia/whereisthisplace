@@ -46,7 +46,14 @@ def test_predict_endpoint_returns_location():
         assert data["status"] == "success"
         assert data["filename"] == "test.jpg"
         assert data["message"] == "Prediction completed successfully"
-        assert data["prediction"] == {"lat": 0.0, "lon": 0.0, "score": 0.1}
+
+        prediction = data["prediction"]
+        assert prediction["lat"] == 0.0
+        assert prediction["lon"] == 0.0
+        assert prediction["score"] == 0.1
+        assert prediction["confidence_level"] == "very_low"
+        assert "bias_warning" in prediction
+        assert prediction["source"] == "model"
 
 
 def test_rate_limit_middleware_added():
