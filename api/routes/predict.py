@@ -1,4 +1,4 @@
-from fastapi import APIRouter, UploadFile, File, HTTPException, Request
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Request
 import requests
 from io import BytesIO
 import os
@@ -110,6 +110,11 @@ router = APIRouter()
 TORCHSERVE_URL = os.getenv('TORCHSERVE_URL', 'http://localhost:8080')
 
 
+async def get_db_pool(request: Request):
+    """Dependency to get database pool from app state."""
+    return getattr(request.app.state, "pool", None)
+
+
 @dataclass
 class GeoResult:
     lat: float
@@ -121,7 +126,7 @@ class GeoResult:
 
 
 @router.post("/predict")
-async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, request: Optional[Request] = None):
+async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_pool=Depends(get_db_pool)):
     """Make prediction using the uploaded photo with bias detection and fallback."""
     try:
         allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
@@ -225,20 +230,18 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, req
                 prediction_dict["warning"] = "Location prediction may be inaccurate due to model bias"
 
             # Persist prediction in the database if a pool is available
-            if request is not None:
-                pool = getattr(request.app.state, "pool", None)
-                if pool:
-                    try:
-                        await insert_prediction(
-                            pool,
-                            geo.lat,
-                            geo.lon,
-                            geo.score,
-                            getattr(geo, "bias_warning", None),
-                            geo.source,
-                        )
-                    except Exception as db_error:
-                        print(f"DB insert failed: {db_error}")
+            if db_pool:
+                try:
+                    await insert_prediction(
+                        db_pool,
+                        geo.lat,
+                        geo.lon,
+                        geo.score,
+                        getattr(geo, "bias_warning", None),
+                        geo.source,
+                    )
+                except Exception as db_error:
+                    print(f"DB insert failed: {db_error}")
 
             return {
                 "status": "success",

@@ -24,11 +24,6 @@ class DummyUploadFile:
         return self.data
 
 
-class DummyRequest:
-    def __init__(self):
-        self.app = types.SimpleNamespace(state=types.SimpleNamespace(pool="pool"))
-
-
 def test_health_endpoint_returns_200():
     importlib.reload(api.main)
     with patch("api.main.init_db", new_callable=AsyncMock), patch(
@@ -50,8 +45,8 @@ def test_predict_returns_expected_data(mock_post, mock_nearest, mock_insert):
     mock_post.return_value.json.return_value = {"embedding": [0.0] * 128}
     mock_nearest.return_value = {"lat": 1.0, "lon": 2.0, "score": 0.5}
     file = DummyUploadFile(b"dummy")
-    req = DummyRequest()
-    result = asyncio.run(predict(photo=file, request=req))
+    mock_db_pool = "mock_pool"
+    result = asyncio.run(predict(photo=file, db_pool=mock_db_pool))
     
     # Check main structure
     assert result["status"] == "success"

@@ -21,10 +21,6 @@ class DummyUploadFile:
         return self.data
 
 
-class DummyRequest:
-    def __init__(self):
-        self.app = types.SimpleNamespace(state=types.SimpleNamespace(pool="pool"))
-
 class DummyOpenAI:
     class ChatCompletion:
         @staticmethod
@@ -45,8 +41,8 @@ def test_openai_mode_fallback(mock_post, mock_nearest, mock_get, mock_insert):
     mock_get.return_value.json.return_value = [{"lat": "48.8", "lon": "2.3"}]
 
     file = DummyUploadFile(b"dummy")
-    req = DummyRequest()
-    result = asyncio.run(predict(photo=file, mode="openai", request=req))
+    mock_db_pool = "mock_pool"
+    result = asyncio.run(predict(photo=file, mode="openai", db_pool=mock_db_pool))
 
     # Check main structure
     assert result["status"] == "success"

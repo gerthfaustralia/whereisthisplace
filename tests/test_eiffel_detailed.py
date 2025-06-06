@@ -20,10 +20,6 @@ class DummyUploadFile:
         return self.data
 
 
-class DummyRequest:
-    def __init__(self):
-        self.app = types.SimpleNamespace(state=types.SimpleNamespace(pool="pool"))
-
 def load_test_image() -> bytes:
     with open(ROOT / "eiffel.jpg", "rb") as f:
         return f.read()
@@ -44,9 +40,9 @@ def test_eiffel_bias_detection_detailed(mock_post, mock_nearest, mock_insert):
 
     image_data = load_test_image()
     file = DummyUploadFile(image_data, filename="eiffel.jpg")
-    req = DummyRequest()
+    mock_db_pool = "mock_pool"
 
-    result = asyncio.run(predict(photo=file, request=req))
+    result = asyncio.run(predict(photo=file, db_pool=mock_db_pool))
     prediction = result["prediction"]
 
     print("=== Eiffel Tower Bias Detection Test Results ===")

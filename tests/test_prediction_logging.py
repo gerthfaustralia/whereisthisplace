@@ -19,10 +19,6 @@ class DummyUploadFile:
     async def read(self) -> bytes:
         return self.data
 
-class DummyRequest:
-    def __init__(self):
-        self.app = types.SimpleNamespace(state=types.SimpleNamespace(pool="pool"))
-
 @patch("routes.predict.insert_prediction", new_callable=AsyncMock)
 @patch("routes.predict.nearest", new_callable=AsyncMock)
 @patch("routes.predict.requests.post")
@@ -32,8 +28,8 @@ def test_prediction_logged(mock_post, mock_nearest, mock_insert):
     mock_nearest.return_value = {"lat": 5.0, "lon": 6.0, "score": 0.7}
 
     file = DummyUploadFile(b"dummy")
-    req = DummyRequest()
-    result = asyncio.run(predict(photo=file, request=req))
+    mock_db_pool = "mock_pool"
+    result = asyncio.run(predict(photo=file, db_pool=mock_db_pool))
 
     assert result["status"] == "success"
     mock_insert.assert_awaited_once()

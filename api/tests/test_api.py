@@ -41,7 +41,7 @@ def test_predict_endpoint_returns_location():
         patch('routes.predict.nearest', new_callable=AsyncMock) as mock_nearest:
         mock_nearest.return_value = {"lat": 0.0, "lon": 0.0, "score": 0.1}
         file = DummyUploadFile(b"dummy")
-        data = asyncio.run(predict(photo=file))
+        data = asyncio.run(predict(photo=file, db_pool=None))
 
         assert data["status"] == "success"
         assert data["filename"] == "test.jpg"
