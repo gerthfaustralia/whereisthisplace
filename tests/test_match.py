@@ -23,6 +23,10 @@ class DummyConn:
         self.queries.append((query, vec))
         return self.result
 
+    async def execute(self, query):
+        """Mock execute method for schema setup queries."""
+        pass
+
     async def close(self):
         pass
 
@@ -33,8 +37,9 @@ async def test_nearest_returns_expected_row():
 
     dummy = DummyConn(expected)
     with patch("api.repositories.match.asyncpg.connect", return_value=dummy):
-        with patch.dict(os.environ, {"DATABASE_URL": "postgresql://"}):
-            result = await nearest(np.array([0.1, 0.2]))
+        with patch("api.db.register_vector"):  # Mock the pgvector registration
+            with patch.dict(os.environ, {"DATABASE_URL": "postgresql://"}):
+                result = await nearest(np.array([0.1, 0.2]))
 
     assert result == expected
     assert dummy.queries

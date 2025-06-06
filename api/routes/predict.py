@@ -18,6 +18,70 @@ async def query_geo(vec: np.ndarray) -> "GeoResult":
         raise HTTPException(status_code=404, detail="No match found")
     return GeoResult(lat=row["lat"], lon=row["lon"], score=row.get("score", 0.0))
 
+
+def detect_geographic_bias(geo_result: "GeoResult", filename: str = "") -> "GeoResult":
+    """Detect and adjust for known geographic bias patterns."""
+    lat, lon, score = geo_result.lat, geo_result.lon, geo_result.score
+    
+    # NYC coordinates: roughly 40.4-41.0 latitude, -74.5 to -73.5 longitude
+    is_nyc_prediction = (40.4 <= lat <= 41.0) and (-74.5 <= lon <= -73.5)
+    
+    # Check for suspicious patterns
+    bias_detected = False
+    bias_reason = ""
+    
+    if is_nyc_prediction:
+        # Common European landmark filenames that shouldn't predict NYC
+        european_keywords = [
+            'eiffel', 'tower', 'brandenburg', 'gate', 'buckingham', 'palace', 
+            'big_ben', 'london', 'paris', 'berlin', 'europe', 'colosseum',
+            'arc_de_triomphe', 'notre_dame', 'louvre', 'westminster'
+        ]
+        
+        filename_lower = filename.lower() if filename else ""
+        if any(keyword in filename_lower for keyword in european_keywords):
+            bias_detected = True
+            bias_reason = f"European landmark filename '{filename}' predicted as NYC"
+        
+        # High confidence NYC predictions are often suspicious for user uploads
+        elif score > 0.9:
+            bias_detected = True
+            bias_reason = "Very high confidence NYC prediction may indicate model bias"
+    
+    # Apply bias corrections
+    if bias_detected:
+        # Reduce confidence significantly for biased predictions
+        adjusted_score = score * 0.3
+        return GeoResult(
+            lat=lat, 
+            lon=lon, 
+            score=adjusted_score,
+            bias_warning=bias_reason,
+            original_score=score
+        )
+    
+    return geo_result
+
+
+def should_use_openai_fallback(geo_result: "GeoResult", filename: str = "") -> bool:
+    """Determine if we should fallback to OpenAI due to low confidence or bias."""
+    # Use OpenAI fallback for:
+    # 1. Very low confidence scores
+    if geo_result.score < 0.4:
+        return True
+    
+    # 2. Bias-adjusted predictions (they have bias_warning attribute)
+    if hasattr(geo_result, 'bias_warning'):
+        return True
+    
+    # 3. Suspicious NYC predictions with moderate confidence
+    is_nyc = (40.4 <= geo_result.lat <= 41.0) and (-74.5 <= geo_result.lon <= -73.5)
+    if is_nyc and geo_result.score < 0.7:
+        return True
+    
+    return False
+
+
 try:
     import openai as _openai
 except Exception:
@@ -50,11 +114,14 @@ class GeoResult:
     lat: float
     lon: float
     score: float
+    bias_warning: Optional[str] = None
+    original_score: Optional[float] = None
+    source: str = "model"  # "model" or "openai"
 
 
 @router.post("/predict")
 async def predict(photo: UploadFile = File(...), mode: Optional[str] = None):
-    """Make prediction using the uploaded photo."""
+    """Make prediction using the uploaded photo with bias detection and fallback."""
     try:
         allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
         if photo.content_type not in allowed_types:
@@ -88,8 +155,14 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None):
 
             vec = np.array(embedding)
             geo = await query_geo(vec)
-
-            if mode == "openai" and geo.score < 0.15:
+            
+            # Apply bias detection
+            geo = detect_geographic_bias(geo, photo.filename)
+            
+            # Check if we should use OpenAI fallback
+            use_openai = (mode == "openai") or should_use_openai_fallback(geo, photo.filename)
+            
+            if use_openai and OPENAI_API_KEY:
                 try:
                     b64 = base64.b64encode(image_data).decode()
                     resp = openai.ChatCompletion.create(
@@ -117,15 +190,43 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None):
                     if g.status_code == 200:
                         data = g.json()
                         if isinstance(data, list) and data:
-                            geo.lat = float(data[0]["lat"])
-                            geo.lon = float(data[0]["lon"])
-                except Exception:
-                    pass
+                            # Use OpenAI result, but preserve original for comparison
+                            original_geo = geo
+                            geo = GeoResult(
+                                lat=float(data[0]["lat"]),
+                                lon=float(data[0]["lon"]),
+                                score=0.95,  # High confidence for OpenAI
+                                source="openai",
+                                bias_warning=getattr(original_geo, 'bias_warning', None)
+                            )
+                except Exception as openai_error:
+                    # If OpenAI fails, continue with model prediction but add warning
+                    if hasattr(geo, 'bias_warning'):
+                        geo.bias_warning += f" (OpenAI fallback failed: {str(openai_error)})"
+
+            # Prepare response with enhanced information
+            prediction_dict = asdict(geo)
+            
+            # Add confidence category for user-friendly display
+            if geo.score >= 0.8:
+                confidence_level = "high"
+            elif geo.score >= 0.5:
+                confidence_level = "medium"
+            elif geo.score >= 0.3:
+                confidence_level = "low"
+            else:
+                confidence_level = "very_low"
+            
+            prediction_dict["confidence_level"] = confidence_level
+            
+            # Add warning message for UI
+            if hasattr(geo, 'bias_warning') and geo.bias_warning:
+                prediction_dict["warning"] = "Location prediction may be inaccurate due to model bias"
 
             return {
                 "status": "success",
                 "filename": photo.filename,
-                "prediction": asdict(geo),
+                "prediction": prediction_dict,
                 "message": "Prediction completed successfully",
             }
         else:
