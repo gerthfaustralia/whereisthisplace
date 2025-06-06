@@ -1,0 +1,139 @@
+name: Benchmark Model Accuracy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "ml/**"
+      - "models/**"
+      - "scripts/benchmark.py"
+      - "datasets/**"
+      - ".github/workflows/benchmark.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "ml/**"
+      - "models/**"
+      - "scripts/benchmark.py"
+      - "datasets/**"
+  workflow_dispatch:  # manual trigger
+
+env:
+  AWS_REGION: eu-central-1
+  IMAGE_NAME: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_PASSWORD: wherepass
+          POSTGRES_USER: whereuser
+          POSTGRES_DB: whereisthisplace
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+    - name: Checkout repository (incl. LFS)
+      uses: actions/checkout@v4
+      with:
+        lfs: true
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image for testing
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./api/docker/Dockerfile.gpu
+        push: false
+        load: true
+        build-args: |
+          CACHEBUST=${{ github.sha }}
+        tags: |
+          where-backend-test:latest
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Start services
+      run: |
+        # Start the backend service
+        docker run -d \
+          --name where-backend \
+          --network host \
+          -e DATABASE_URL="postgresql://whereuser:wherepass@localhost:5432/whereisthisplace" \
+          -e TORCHSERVE_URL="http://localhost:8080" \
+          -e TORCHSERVE_MANAGEMENT_URL="http://localhost:8081" \
+          where-backend-test:latest
+        
+        # Wait for services to be ready
+        echo "Waiting for services to start..."
+        sleep 30
+        
+        # Check if API is responding
+        timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
+
+    - name: Set up Python for benchmark
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install benchmark dependencies
+      run: |
+        pip install requests numpy
+
+    - name: Run benchmark on Paris dataset
+      run: |
+        echo "Running benchmark on Paris dataset..."
+        python scripts/benchmark.py \
+          --dataset-dir datasets/mapillary_paris \
+          --api-url http://localhost:8000 \
+          --threshold-km 25.0
+        echo "✅ Paris dataset benchmark completed"
+
+    - name: Run benchmark on all datasets (300 images)
+      run: |
+        echo "Running comprehensive benchmark on 300 randomly sampled images..."
+        python scripts/benchmark.py \
+          --dataset-dir datasets \
+          --api-url http://localhost:8000 \
+          --threshold-km 25.0 \
+          --max-images 300
+        echo "✅ Comprehensive benchmark completed"
+
+    - name: Show service logs on failure
+      if: failure()
+      run: |
+        echo "=== Backend logs ==="
+        docker logs where-backend || true
+        echo "=== Health check ==="
+        curl -f http://localhost:8000/health || true
+
+    - name: Cleanup
+      if: always()
+      run: |
+        docker stop where-backend || true
+        docker rm where-backend || true 
