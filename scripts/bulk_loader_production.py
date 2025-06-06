@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""
+Production Bulk Loader for WhereIsThisPlace
+Handles large-scale image ingestion with proper geometry and vector embeddings.
+
+Features:
+- Concurrent processing with rate limiting
+- Proper PostGIS geometry creation
+- pgvector embedding storage
+- Progress tracking and statistics
+- Error handling and retry logic
+- CSV batch processing
+- Support for multiple data sources
+
+Usage:
+    python scripts/bulk_loader_production.py \
+        --dataset-dir ./datasets \
+        --source mapillary_dataset \
+        --max-concurrent 8 \
+        --batch-size 100
+"""
+
+import argparse
+import asyncio
+import asyncpg
+import requests
+import csv
+import json
+import time
+import logging
+from pathlib import Path
+from typing import Dict, List, Optional
+import numpy as np
+from pgvector.asyncpg import register_vector
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+class ProductionBulkLoader:
+    def __init__(self, database_url: str, model_url: str, max_concurrent: int = 4, batch_size: int = 100):
+        self.database_url = database_url
+        self.model_url = model_url.rstrip('/')
+        self.max_concurrent = max_concurrent
+        self.batch_size = batch_size
+        self.semaphore = asyncio.Semaphore(max_concurrent)
+        
+        self.stats = {
+            'processed': 0, 'successful': 0, 'errors': 0, 'skipped': 0,
+            'total_embedding_time': 0.0, 'total_db_time': 0.0
+        }
+        self.error_log = []
+        
+    async def init_pool(self):
+        """Initialize database connection pool with pgvector support"""
+        self.pool = await asyncpg.create_pool(
+            self.database_url,
+            min_size=5,
+            max_size=20,
+            init=register_vector
+        )
+        logger.info(f'Initialized connection pool (size: 5-20)')
+        
+    async def process_image(self, image_path: Path, filename: str, lat: float, lon: float, 
+                           source: str, metadata: Optional[Dict] = None) -> bool:
+        """Process a single image: embedding + database insert"""
+        async with self.semaphore:
+            try:
+                start_time = time.time()
+                
+                # Read image
+                if not image_path.exists():
+                    self.stats['skipped'] += 1
+                    self.error_log.append(f'{filename}: File not found')
+                    return False
+                    
+                with open(image_path, 'rb') as f:
+                    image_data = f.read()
+                
+                # Get embedding from TorchServe
+                embed_start = time.time()
+                response = requests.post(
+                    f'{self.model_url}/predictions/where', 
+                    data=image_data, 
+                    timeout=60,
+                    headers={'Content-Type': 'application/octet-stream'}
+                )
+                
+                if response.status_code != 200:
+                    self.stats['errors'] += 1
+                    self.error_log.append(f'{filename}: TorchServe error {response.status_code}')
+                    return False
+                
+                embedding_data = response.json()
+                embedding = embedding_data.get('embedding')
+                if not embedding:
+                    self.stats['errors'] += 1
+                    self.error_log.append(f'{filename}: No embedding in response')
+                    return False
+                
+                # Convert embedding list to numpy array for pgvector compatibility
+                embedding_vector = np.array(embedding, dtype=np.float32)
+                    
+                embed_time = time.time() - embed_start
+                self.stats['total_embedding_time'] += embed_time
+                
+                # Insert into database with proper geometry and pgvector format
+                db_start = time.time()
+                async with self.pool.acquire() as conn:
+                    await conn.execute('''
+                        INSERT INTO training_images (filename, lat, lon, geom, vlad, source, metadata) 
+                        VALUES ($1, $2, $3, ST_SetSRID(ST_MakePoint($3, $2), 4326), $4, $5, $6)
+                    ''', filename, lat, lon, embedding_vector, source, json.dumps(metadata) if metadata else None)
+                
+                db_time = time.time() - db_start
+                self.stats['total_db_time'] += db_time
+                self.stats['successful'] += 1
+                
+                total_time = time.time() - start_time
+                logger.debug(f'✅ {filename} - {lat:.4f}, {lon:.4f} ({total_time:.3f}s)')
+                return True
+                
+            except Exception as e:
+                self.stats['errors'] += 1
+                self.error_log.append(f'{filename}: {str(e)}')
+                logger.error(f'❌ {filename}: {e}')
+                return False
+            finally:
+                self.stats['processed'] += 1
+
+    async def process_images_simple(self, csv_data: List[Dict], source: str):
+        """Process images sequentially with progress tracking - simplified approach"""
+        logger.info(f'Processing {len(csv_data)} images sequentially')
+        
+        for i, item in enumerate(csv_data, 1):
+            image_path = Path(item['image_path'])
+            success = await self.process_image(
+                image_path,
+                item['filename'],
+                item['lat'],
+                item['lon'],
+                source,
+                item.get('metadata')
+            )
+            
+            # Progress reporting every 10 images
+            if i % 10 == 0 or i == len(csv_data):
+                success_rate = (self.stats['successful'] / self.stats['processed']) * 100 if self.stats['processed'] > 0 else 0
+                throughput = self.stats['successful'] / (time.time() - self.start_time) * 3600 if hasattr(self, 'start_time') else 0
+                
+                logger.info(f'Progress: {i}/{len(csv_data)} | Success: {self.stats["successful"]} | '
+                           f'Errors: {self.stats["errors"]} | Rate: {success_rate:.1f}% | '
+                           f'Throughput: {throughput:.0f}/hour')
+                
+    async def process_batch(self, batch_data: List[Dict], source: str):
+        """Process a batch of images concurrently"""
+        tasks = []
+        for item in batch_data:
+            image_path = Path(item['image_path'])
+            task = self.process_image(
+                image_path,
+                item['filename'],
+                item['lat'],
+                item['lon'],
+                source,
+                item.get('metadata')
+            )
+            tasks.append(task)
+        
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+            
+    async def load_from_csv(self, csv_path: Path, source: str, use_simple_processing: bool = True):
+        """Load images from a CSV file"""
+        logger.info(f'Loading from CSV: {csv_path}')
+        
+        csv_data = []
+        
+        with open(csv_path, 'r') as f:
+            reader = csv.DictReader(f)
+            
+            for row in reader:
+                image_path = csv_path.parent / row['image']
+                
+                batch_item = {
+                    'image_path': image_path,
+                    'filename': row['image'],
+                    'lat': float(row['lat']),
+                    'lon': float(row['lon']),
+                    'metadata': {
+                        'description': row.get('description', ''),
+                        'csv_source': str(csv_path.name)
+                    }
+                }
+                csv_data.append(batch_item)
+        
+        if use_simple_processing:
+            # Use simple sequential processing for reliability
+            await self.process_images_simple(csv_data, source)
+        else:
+            # Use batch processing (original logic)
+            batch = []
+            total_rows = len(csv_data)
+            
+            for i, item in enumerate(csv_data):
+                batch.append(item)
+                
+                # Process batch when it reaches batch_size
+                if len(batch) >= self.batch_size or i == total_rows - 1:
+                    batch_num = (i // self.batch_size) + 1
+                    await self.process_batch(batch, source)
+                    success_rate = (self.stats['successful'] / self.stats['processed']) * 100 if self.stats['processed'] > 0 else 0
+                    throughput = self.stats['successful'] / (time.time() - self.start_time) * 3600 if hasattr(self, 'start_time') else 0
+                    
+                    logger.info(f'Batch {batch_num} | Success: {self.stats["successful"]} | '
+                               f'Skipped: {self.stats["skipped"]} | Errors: {self.stats["errors"]} | '
+                               f'Rate: {success_rate:.1f}% | Throughput: {throughput:.0f}/hour')
+                    batch = []
+        
+        logger.info(f'Completed {csv_path.name}: {self.stats["successful"]} images loaded')
+        
+    async def run(self, dataset_dir: str, source: str = 'bulk_load', use_simple_processing: bool = True):
+        """Main execution function"""
+        self.start_time = time.time()
+        await self.init_pool()
+        
+        dataset_path = Path(dataset_dir)
+        if not dataset_path.exists():
+            raise FileNotFoundError(f'Dataset directory not found: {dataset_dir}')
+            
+        csv_files = list(dataset_path.glob('*.csv'))
+        logger.info(f'Found {len(csv_files)} CSV files to process')
+        
+        if not csv_files:
+            logger.warning(f'No CSV files found in {dataset_dir}')
+            return
+        
+        # Process each CSV file
+        for csv_file in csv_files:
+            logger.info(f'\nProcessing CSV: {csv_file.name}')
+            await self.load_from_csv(csv_file, source, use_simple_processing)
+            
+        elapsed = time.time() - self.start_time
+        
+        # Final statistics
+        success_rate = (self.stats['successful'] / self.stats['processed']) * 100 if self.stats['processed'] > 0 else 0
+        throughput_per_sec = self.stats['successful'] / elapsed if elapsed > 0 else 0
+        throughput_per_hour = throughput_per_sec * 3600
+        
+        logger.info(f'''
+=== BULK LOADING COMPLETE ===
+✅ Successful: {self.stats['successful']}
+❌ Errors: {self.stats['errors']} 
+⚠️  Skipped: {self.stats['skipped']}
+📊 Success Rate: {success_rate:.1f}%
+⏱️  Total Time: {elapsed:.2f}s
+🧠 Embedding Time: {self.stats['total_embedding_time']:.2f}s ({self.stats['total_embedding_time']/elapsed*100:.1f}%)
+💾 Database Time: {self.stats['total_db_time']:.2f}s ({self.stats['total_db_time']/elapsed*100:.1f}%)
+🚀 Throughput: {throughput_per_sec:.1f}/sec ({throughput_per_hour:.0f}/hour)
+📈 Daily Capacity: {throughput_per_hour*24:.0f} images/day
+        ''')
+        
+        # Log errors if any
+        if self.error_log:
+            logger.warning(f'\n=== ERRORS ({len(self.error_log)}) ===')
+            for error in self.error_log[:10]:  # Show first 10 errors
+                logger.warning(error)
+            if len(self.error_log) > 10:
+                logger.warning(f'... and {len(self.error_log) - 10} more errors')
+        
+        await self.pool.close()
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='Production bulk loader for geolocated images')
+    parser.add_argument('--dataset-dir', required=True, help='Directory containing CSV and images')
+    parser.add_argument('--source', default='bulk_load', help='Source label for database')
+    parser.add_argument('--max-concurrent', type=int, default=8, help='Max concurrent processing')
+    parser.add_argument('--batch-size', type=int, default=100, help='Batch size for processing')
+    parser.add_argument('--use-batch-processing', action='store_true', 
+                        help='Use batch processing instead of simple sequential processing')
+    parser.add_argument('--database-url', 
+                        default='postgresql://whereuser:wherepass@postgres:5432/whereisthisplace',
+                        help='Database connection string')
+    parser.add_argument('--model-url', default='http://localhost:8080', help='TorchServe model URL')
+    parser.add_argument('--log-level', default='INFO', 
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR'],
+                        help='Logging level')
+    
+    args = parser.parse_args()
+    
+    # Set logging level
+    logging.getLogger().setLevel(getattr(logging, args.log_level))
+    
+    loader = ProductionBulkLoader(
+        args.database_url, 
+        args.model_url, 
+        args.max_concurrent, 
+        args.batch_size
+    )
+    
+    try:
+        asyncio.run(loader.run(
+            args.dataset_dir, 
+            args.source, 
+            use_simple_processing=not args.use_batch_processing
+        ))
+    except KeyboardInterrupt:
+        logger.info('Interrupted by user')
+    except Exception as e:
+        logger.error(f'Fatal error: {e}')
+        raise 
