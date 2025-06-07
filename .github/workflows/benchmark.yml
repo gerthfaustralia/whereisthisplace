@@ -78,9 +78,23 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
 
+    - name: Initialize database
+      run: |
+        # Install PostgreSQL client
+        sudo apt-get update && sudo apt-get install -y postgresql-client
+        
+        # Wait for PostgreSQL to be ready
+        timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U whereuser; do sleep 2; done'
+        
+        # Create database schema if needed
+        PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "
+        CREATE EXTENSION IF NOT EXISTS vector;
+        CREATE SCHEMA IF NOT EXISTS whereisthisplace;
+        " || echo "Database initialization completed or already exists"
+
     - name: Start services
       run: |
-        # Start the backend service
+        # Start the backend service with proper environment
         docker run -d \
           --name where-backend \
           --network host \
@@ -89,12 +103,21 @@ jobs:
           -e TORCHSERVE_MANAGEMENT_URL="http://localhost:8081" \
           where-backend-test:latest
         
-        # Wait for services to be ready
-        echo "Waiting for services to start..."
-        sleep 30
+        # Wait for TorchServe to start first
+        echo "Waiting for TorchServe to start..."
+        sleep 45
+        
+        # Check TorchServe health
+        echo "Checking TorchServe..."
+        timeout 30 bash -c 'until curl -f http://localhost:8081/models; do echo "Waiting for TorchServe..."; sleep 5; done'
+        
+        # Wait a bit more for FastAPI to start
+        echo "Waiting for FastAPI to start..."
+        sleep 15
         
         # Check if API is responding
-        timeout 60 bash -c 'until curl -f http://localhost:8000/health; do sleep 2; done'
+        echo "Checking FastAPI health..."
+        timeout 60 bash -c 'until curl -f http://localhost:8000/health; do echo "Waiting for FastAPI..."; sleep 5; done'
 
     - name: Set up Python for benchmark
       uses: actions/setup-python@v4
@@ -127,10 +150,16 @@ jobs:
     - name: Show service logs on failure
       if: failure()
       run: |
+        echo "=== Container status ==="
+        docker ps -a || true
         echo "=== Backend logs ==="
         docker logs where-backend || true
-        echo "=== Health check ==="
+        echo "=== TorchServe health check ==="
+        curl -f http://localhost:8081/models || true
+        echo "=== FastAPI health check ==="
         curl -f http://localhost:8000/health || true
+        echo "=== Container inspect ==="
+        docker inspect where-backend || true
 
     - name: Cleanup
       if: always()
