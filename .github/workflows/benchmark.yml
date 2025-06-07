@@ -169,11 +169,19 @@ jobs:
       run: |
         pip install requests numpy asyncpg pgvector
 
-    - name: Load sample data into database
+    - name: Load dataset with real embeddings
       run: |
-        echo "Loading sample data for benchmarking..."
-        python scripts/load_sample_data.py
-        echo "✅ Sample data loaded"
+        echo "Loading Paris dataset with real embeddings from TorchServe..."
+        # Wait a bit more to ensure TorchServe is fully ready
+        sleep 10
+        # Test TorchServe endpoint first
+        curl -f http://localhost:8080/predictions/where --data-binary @datasets/mapillary_paris/mapillary_2926772260983937_000000.jpg || echo "TorchServe test failed, will use fallback embeddings"
+        # Load dataset
+        python scripts/load_dataset.py \
+          --dataset-dir datasets/mapillary_paris \
+          --database-url "postgresql://whereuser:wherepass@localhost:5432/whereisthisplace" \
+          --model-url "http://localhost:8080"
+        echo "✅ Dataset loaded with real embeddings"
 
     - name: Debug API endpoints
       run: |
