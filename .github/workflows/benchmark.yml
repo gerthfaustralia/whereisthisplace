@@ -2,7 +2,7 @@ name: Benchmark Model Accuracy
 
 on:
   push:
-    branches: [main]
+    branches: [main, codex/find-300-gold-label-images-for-benchmark]
     paths:
       - "api/**"
       - "ml/**"
