@@ -32,7 +32,7 @@ jobs:
     
     services:
       postgres:
-        image: pgvector/pgvector:pg16
+        image: postgis/postgis:16-3.5
         env:
           POSTGRES_PASSWORD: wherepass
           POSTGRES_USER: whereuser
@@ -86,31 +86,35 @@ jobs:
         # Wait for PostgreSQL to be ready
         timeout 30 bash -c 'until pg_isready -h localhost -p 5432 -U whereuser; do sleep 2; done'
         
-        # Create database schema if needed
+        # Install pgvector extension in the PostGIS container
+        docker exec $(docker ps -q --filter ancestor=postgis/postgis:16-3.5) bash -c "
+          apt-get update && 
+          apt-get install -y postgresql-16-pgvector &&
+          echo 'pgvector extension installed'
+        " || echo "pgvector installation failed, will try alternative method"
+        
+        # Create database schema and install extensions
         PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "
-        CREATE EXTENSION IF NOT EXISTS vector;
         CREATE EXTENSION IF NOT EXISTS postgis;
+        CREATE EXTENSION IF NOT EXISTS vector;
         CREATE SCHEMA IF NOT EXISTS whereisthisplace;
         " || echo "Database initialization completed or already exists"
 
     - name: Run database migrations
       run: |
-        # Set up Python for running migrations
-        python -m pip install --upgrade pip
-        pip install alembic psycopg2-binary sqlalchemy geoalchemy2 pgvector python-dotenv
-        
-        # Set database URL for migrations
-        export DATABASE_URL="postgresql://whereuser:wherepass@localhost:5432/whereisthisplace"
-        
-        # Run Alembic migrations to create tables
-        cd api
-        alembic upgrade head
-        
-        # Verify table was created
-        PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "
-        \dt
-        SELECT COUNT(*) as table_exists FROM information_schema.tables WHERE table_name = 'photos';
-        "
+        # Start a temporary container to run migrations
+        docker run --rm \
+          --network host \
+          -e DATABASE_URL="postgresql://whereuser:wherepass@localhost:5432/whereisthisplace" \
+          where-backend-test:latest \
+          /bin/bash -c "
+            echo 'Running Alembic migrations...'
+            cd /app && /home/venv/bin/alembic upgrade head
+            
+            echo 'Verifying table creation...'
+            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c '\\dt'
+            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c 'SELECT COUNT(*) as table_exists FROM information_schema.tables WHERE table_name = \"photos\";'
+          "
 
     - name: Start services
       run: |

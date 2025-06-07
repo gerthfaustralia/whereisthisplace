@@ -16,6 +16,7 @@ COPY api/poetry.lock /app/api/poetry.lock
 
 # Install Poetry and dependencies to the venv that TorchServe uses
 RUN echo "Cache bust: $CACHEBUST" && \
+    apt-get update && apt-get install -y postgresql-client && \
     /home/venv/bin/pip install --no-cache-dir poetry && \
     /home/venv/bin/poetry config virtualenvs.create false && \
     /home/venv/bin/poetry --directory /app/api install --only main --no-interaction --no-root && \
