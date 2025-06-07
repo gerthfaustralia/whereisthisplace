@@ -121,7 +121,7 @@ jobs:
         echo "=== Running Alembic migrations ==="
         docker exec migration-container bash -c 'echo "Current directory: $(pwd)" && ls -la /app/api/ && echo "Checking alembic.ini:" && head -5 /app/api/alembic.ini'
         docker exec migration-container bash -c 'cd /app && cp api/alembic.ini /tmp/alembic.ini && sed -i "s|script_location = migrations|script_location = api/migrations|" /tmp/alembic.ini'
-        docker exec migration-container bash -c 'cd /app && PYTHONPATH=/app /home/venv/bin/alembic -c /tmp/alembic.ini upgrade head'
+        docker exec migration-container bash -c 'cd /app && PYTHONPATH=/app/api:/app /home/venv/bin/alembic -c /tmp/alembic.ini upgrade head'
         
         echo "=== Verifying table creation ==="
         docker exec migration-container bash -c 'PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "\dt"'
