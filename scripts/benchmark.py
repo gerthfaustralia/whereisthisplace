@@ -136,6 +136,9 @@ def evaluate(dataset_dir: Path, api_url: str, threshold_km: float, max_images: i
         if total % 10 == 0:
             current_acc = (correct / total) * 100 if total > 0 else 0
             print(f"Processed {total} images, current accuracy: {current_acc:.1f}%")
+        
+        # Small delay to avoid overwhelming the API
+        time.sleep(0.1)
     
     elapsed_time = time.time() - start_time
     
