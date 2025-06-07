@@ -119,7 +119,8 @@ jobs:
         echo "Skipping connection test - proceeding directly to migrations"
         
         echo "=== Running Alembic migrations ==="
-        docker exec migration-container bash -c 'cd /app && /home/venv/bin/alembic upgrade head'
+        docker exec migration-container bash -c 'echo "Current directory: $(pwd)" && ls -la /app/api/ && echo "Checking alembic.ini:" && head -5 /app/api/alembic.ini'
+        docker exec migration-container bash -c 'cd /app/api && /home/venv/bin/alembic -c alembic.ini upgrade head'
         
         echo "=== Verifying table creation ==="
         docker exec migration-container bash -c 'PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "\dt"'
