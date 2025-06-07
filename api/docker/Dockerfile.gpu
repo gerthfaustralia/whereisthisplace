@@ -18,7 +18,12 @@ COPY api/poetry.lock /app/api/poetry.lock
 RUN echo "Cache bust: $CACHEBUST" && \
     /home/venv/bin/pip install --no-cache-dir poetry && \
     /home/venv/bin/poetry config virtualenvs.create false && \
-    /home/venv/bin/poetry --directory /app/api install --only main --no-interaction --no-root
+    /home/venv/bin/poetry --directory /app/api install --only main --no-interaction --no-root && \
+    /home/venv/bin/pip install --no-cache-dir uvicorn[standard] && \
+    echo "Installed packages:" && \
+    /home/venv/bin/pip list | grep -E "(uvicorn|fastapi)" && \
+    echo "Python path check:" && \
+    /home/venv/bin/python -c "import uvicorn; print('uvicorn imported successfully')"
 
 # Copy application code from host's api/ directory to container's /app/api/ directory
 # This means your actual FastAPI app (e.g., main.py) should be in repo_root/api/main.py
@@ -43,8 +48,24 @@ RUN mkdir -p /app/config && \
     echo "model_store=/model-store" >> /app/config/config.properties && \
     echo "load_models=all" >> /app/config/config.properties
 
+# Create startup script for better debugging
+RUN echo '#!/bin/bash' > /app/start.sh && \
+    echo 'set -e' >> /app/start.sh && \
+    echo 'echo "=== Starting services ==="' >> /app/start.sh && \
+    echo 'echo "Python version: $(/home/venv/bin/python --version)"' >> /app/start.sh && \
+    echo 'echo "Checking uvicorn installation..."' >> /app/start.sh && \
+    echo '/home/venv/bin/python -c "import uvicorn; print(f\"uvicorn version: {uvicorn.__version__}\")"' >> /app/start.sh && \
+    echo 'echo "Starting TorchServe..."' >> /app/start.sh && \
+    echo 'torchserve --start --ncs --model-store /model-store --models all --ts-config /app/config/config.properties &' >> /app/start.sh && \
+    echo 'echo "Waiting 30 seconds for TorchServe to start..."' >> /app/start.sh && \
+    echo 'sleep 30' >> /app/start.sh && \
+    echo 'echo "Starting FastAPI..."' >> /app/start.sh && \
+    echo 'cd /app' >> /app/start.sh && \
+    echo '/home/venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000' >> /app/start.sh && \
+    chmod +x /app/start.sh && \
+    chown model-server:model-server /app/start.sh
+
 USER model-server
 
-# Start both TorchServe and FastAPI
-# Use the venv python that has all the packages installed
-CMD ["bash", "-c", "torchserve --start --ncs --model-store /model-store --models all --ts-config /app/config/config.properties & sleep 30 && cd /app && /home/venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000"]
+# Start both TorchServe and FastAPI using the startup script
+CMD ["/app/start.sh"]
