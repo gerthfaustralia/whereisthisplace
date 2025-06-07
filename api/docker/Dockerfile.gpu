@@ -19,11 +19,12 @@ RUN echo "Cache bust: $CACHEBUST" && \
     /home/venv/bin/pip install --no-cache-dir poetry && \
     /home/venv/bin/poetry config virtualenvs.create false && \
     /home/venv/bin/poetry --directory /app/api install --only main --no-interaction --no-root && \
-    /home/venv/bin/pip install --no-cache-dir uvicorn[standard] && \
+    /home/venv/bin/pip install --no-cache-dir uvicorn[standard] fastapi && \
     echo "Installed packages:" && \
     /home/venv/bin/pip list | grep -E "(uvicorn|fastapi)" && \
     echo "Python path check:" && \
-    /home/venv/bin/python -c "import uvicorn; print('uvicorn imported successfully')"
+    /home/venv/bin/python -c "import uvicorn; print('uvicorn imported successfully')" && \
+    /home/venv/bin/python -c "import fastapi; print('fastapi imported successfully')"
 
 # Copy application code from host's api/ directory to container's /app/api/ directory
 # This means your actual FastAPI app (e.g., main.py) should be in repo_root/api/main.py
