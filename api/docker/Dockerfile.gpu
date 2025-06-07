@@ -20,11 +20,14 @@ RUN echo "Cache bust: $CACHEBUST" && \
     /home/venv/bin/poetry config virtualenvs.create false && \
     /home/venv/bin/poetry --directory /app/api install --only main --no-interaction --no-root && \
     /home/venv/bin/pip install --no-cache-dir uvicorn[standard] fastapi && \
+    /home/venv/bin/pip install --no-cache-dir asyncpg psycopg2-binary sqlalchemy geoalchemy2 pgvector[sqlalchemy] && \
+    /home/venv/bin/pip install --no-cache-dir numpy python-dotenv pydantic-settings requests python-multipart alembic httpx && \
     echo "Installed packages:" && \
-    /home/venv/bin/pip list | grep -E "(uvicorn|fastapi)" && \
+    /home/venv/bin/pip list | grep -E "(uvicorn|fastapi|asyncpg|psycopg2|sqlalchemy)" && \
     echo "Python path check:" && \
     /home/venv/bin/python -c "import uvicorn; print('uvicorn imported successfully')" && \
-    /home/venv/bin/python -c "import fastapi; print('fastapi imported successfully')"
+    /home/venv/bin/python -c "import fastapi; print('fastapi imported successfully')" && \
+    /home/venv/bin/python -c "import asyncpg; print('asyncpg imported successfully')"
 
 # Copy application code from host's api/ directory to container's /app/api/ directory
 # This means your actual FastAPI app (e.g., main.py) should be in repo_root/api/main.py
@@ -48,6 +51,10 @@ RUN mkdir -p /app/config && \
     echo "metrics_address=http://0.0.0.0:8082" >> /app/config/config.properties && \
     echo "model_store=/model-store" >> /app/config/config.properties && \
     echo "load_models=all" >> /app/config/config.properties
+
+# Create logs directory for TorchServe
+RUN mkdir -p /app/logs && \
+    chown -R model-server:model-server /app/logs
 
 # Create startup script for better debugging
 RUN echo '#!/bin/bash' > /app/start.sh && \
