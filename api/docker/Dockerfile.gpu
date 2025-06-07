@@ -14,15 +14,11 @@ WORKDIR /app
 COPY api/pyproject.toml /app/api/pyproject.toml
 COPY api/poetry.lock /app/api/poetry.lock
 
-# Install Poetry
+# Install Poetry and dependencies to the venv that TorchServe uses
 RUN echo "Cache bust: $CACHEBUST" && \
-    pip install --no-cache-dir poetry
-
-# Configure Poetry and install dependencies for the project in /app/api
-# virtualenvs.create false ensures packages are installed in a way that's
-# accessible to the system python in the image, which uvicorn will use.
-RUN poetry config virtualenvs.create false && \
-    poetry --directory /app/api install --only main --no-interaction --no-root
+    /home/venv/bin/pip install --no-cache-dir poetry && \
+    /home/venv/bin/poetry config virtualenvs.create false && \
+    /home/venv/bin/poetry --directory /app/api install --only main --no-interaction --no-root
 
 # Copy application code from host's api/ directory to container's /app/api/ directory
 # This means your actual FastAPI app (e.g., main.py) should be in repo_root/api/main.py
@@ -50,5 +46,5 @@ RUN mkdir -p /app/config && \
 USER model-server
 
 # Start both TorchServe and FastAPI
-# The `cd /app` is important so that `api.main` can be found if PYTHONPATH includes /app.
-CMD ["bash", "-c", "torchserve --start --ncs --model-store /model-store --models all --ts-config /app/config/config.properties & sleep 30 && cd /app && python -m uvicorn api.main:app --host 0.0.0.0 --port 8000"]
+# Use the venv python that has all the packages installed
+CMD ["bash", "-c", "torchserve --start --ncs --model-store /model-store --models all --ts-config /app/config/config.properties & sleep 30 && cd /app && /home/venv/bin/python -m uvicorn api.main:app --host 0.0.0.0 --port 8000"]
