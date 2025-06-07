@@ -113,23 +113,23 @@ jobs:
           -e PGPORT="5432" \
           -e PGDATABASE="whereisthisplace" \
           where-backend-test:latest \
-          /bin/bash -c '
-            echo "=== Migration Debug Info ==="
-            echo "DATABASE_URL: $DATABASE_URL"
-            echo "PGUSER: $PGUSER"
-            echo "Current user: $(whoami)"
-            echo "Python version: $(/home/venv/bin/python --version)"
+          bash -c "
+            echo '=== Migration Debug Info ==='
+            echo 'DATABASE_URL: '\$DATABASE_URL
+            echo 'PGUSER: '\$PGUSER
+            echo 'Current user: '\$(whoami)
+            echo 'Python version: '\$(/home/venv/bin/python --version)
             
-            echo "=== Testing database connection ==="
-            /home/venv/bin/python -c "import asyncpg, asyncio; asyncio.run(asyncpg.connect(\"$DATABASE_URL\").close())" && echo "Database connection successful" || (echo "Database connection failed" && exit 1)
+            echo '=== Testing database connection ==='
+            /home/venv/bin/python -c 'import asyncpg, asyncio; asyncio.run(asyncpg.connect(\"'\$DATABASE_URL'\").close())' && echo 'Database connection successful' || (echo 'Database connection failed' && exit 1)
             
-            echo "=== Running Alembic migrations ==="
+            echo '=== Running Alembic migrations ==='
             cd /app && /home/venv/bin/alembic upgrade head
             
-            echo "=== Verifying table creation ==="
-            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "\dt"
-            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "SELECT COUNT(*) as table_exists FROM information_schema.tables WHERE table_name = '\''photos'\'';"
-          '
+            echo '=== Verifying table creation ==='
+            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c '\dt'
+            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c 'SELECT COUNT(*) as table_exists FROM information_schema.tables WHERE table_name = '\''photos'\'';'
+          "
 
     - name: Start services
       run: |
