@@ -121,20 +121,7 @@ jobs:
             echo "Python version: $(/home/venv/bin/python --version)"
             
             echo "=== Testing database connection ==="
-            /home/venv/bin/python -c "
-import asyncpg
-import asyncio
-async def test_connection():
-    try:
-        conn = await asyncpg.connect(\"$DATABASE_URL\")
-        result = await conn.fetchval(\"SELECT version()\")
-        print(f\"Database connection successful: {result[:50]}...\")
-        await conn.close()
-    except Exception as e:
-        print(f\"Database connection failed: {e}\")
-        exit(1)
-asyncio.run(test_connection())
-            "
+            /home/venv/bin/python -c "import asyncpg, asyncio; asyncio.run(asyncpg.connect(\"$DATABASE_URL\").close())" && echo "Database connection successful" || (echo "Database connection failed" && exit 1)
             
             echo "=== Running Alembic migrations ==="
             cd /app && /home/venv/bin/alembic upgrade head
