@@ -74,8 +74,8 @@ async def load_sample_data():
             embedding = np.random.normal(0, 0.1, 128).astype(np.float32)
             
             await conn.execute(
-                "INSERT INTO photos (lat, lon, vlad, scene_label) VALUES ($1, $2, $3, $4)",
-                lat, lon, embedding.tolist(), description
+                "INSERT INTO photos (lat, lon, vlad) VALUES ($1, $2, $3)",
+                lat, lon, embedding.tolist()
             )
         
         # Verify data was inserted
@@ -83,10 +83,11 @@ async def load_sample_data():
         print(f"✅ Loaded {count} sample photos into database")
         
         # Show some sample data
-        samples = await conn.fetch("SELECT lat, lon, scene_label FROM photos LIMIT 5")
+        samples = await conn.fetch("SELECT lat, lon FROM photos LIMIT 5")
         print("Sample data:")
-        for row in samples:
-            print(f"  - {row['scene_label']}: {row['lat']:.4f}, {row['lon']:.4f}")
+        for i, row in enumerate(samples):
+            location_name = sample_data[i][2] if i < len(sample_data) else "Unknown"
+            print(f"  - {location_name}: {row['lat']:.4f}, {row['lon']:.4f}")
             
     finally:
         await conn.close()
