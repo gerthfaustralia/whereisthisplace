@@ -167,7 +167,19 @@ jobs:
 
     - name: Install benchmark dependencies
       run: |
-        pip install requests numpy
+        pip install requests numpy asyncpg pgvector
+
+    - name: Load sample data into database
+      run: |
+        echo "Loading sample data for benchmarking..."
+        python scripts/load_sample_data.py
+        echo "✅ Sample data loaded"
+
+    - name: Debug API endpoints
+      run: |
+        echo "Testing API endpoints to debug 404 issues..."
+        python scripts/test_api_endpoint.py
+        echo "✅ API endpoint testing completed"
 
     - name: Run benchmark on Paris dataset
       run: |
