@@ -2,6 +2,7 @@
 """Benchmark harness for WhereIsThisPlace API.
 
 Loads gold-label images and evaluates model predictions.
+Updated to trigger CI workflow.
 """
 import argparse
 import csv
