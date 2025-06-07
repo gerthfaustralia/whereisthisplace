@@ -103,15 +103,43 @@ jobs:
     - name: Run database migrations
       run: |
         # Start a temporary container to run migrations
-        docker run --rm \
+        echo "Starting migration container..."
+        timeout 300 docker run --rm \
           --network host \
           -e DATABASE_URL="postgresql://whereuser:wherepass@localhost:5432/whereisthisplace" \
+          -e PGUSER="whereuser" \
+          -e PGPASSWORD="wherepass" \
+          -e PGHOST="localhost" \
+          -e PGPORT="5432" \
+          -e PGDATABASE="whereisthisplace" \
           where-backend-test:latest \
           /bin/bash -c '
-            echo "Running Alembic migrations..."
+            echo "=== Migration Debug Info ==="
+            echo "DATABASE_URL: $DATABASE_URL"
+            echo "PGUSER: $PGUSER"
+            echo "Current user: $(whoami)"
+            echo "Python version: $(/home/venv/bin/python --version)"
+            
+            echo "=== Testing database connection ==="
+            /home/venv/bin/python -c "
+import asyncpg
+import asyncio
+async def test_connection():
+    try:
+        conn = await asyncpg.connect(\"$DATABASE_URL\")
+        result = await conn.fetchval(\"SELECT version()\")
+        print(f\"Database connection successful: {result[:50]}...\")
+        await conn.close()
+    except Exception as e:
+        print(f\"Database connection failed: {e}\")
+        exit(1)
+asyncio.run(test_connection())
+            "
+            
+            echo "=== Running Alembic migrations ==="
             cd /app && /home/venv/bin/alembic upgrade head
             
-            echo "Verifying table creation..."
+            echo "=== Verifying table creation ==="
             PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "\dt"
             PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "SELECT COUNT(*) as table_exists FROM information_schema.tables WHERE table_name = '\''photos'\'';"
           '
