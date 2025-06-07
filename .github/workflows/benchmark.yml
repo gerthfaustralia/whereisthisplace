@@ -107,14 +107,14 @@ jobs:
           --network host \
           -e DATABASE_URL="postgresql://whereuser:wherepass@localhost:5432/whereisthisplace" \
           where-backend-test:latest \
-          /bin/bash -c "
-            echo 'Running Alembic migrations...'
+          /bin/bash -c '
+            echo "Running Alembic migrations..."
             cd /app && /home/venv/bin/alembic upgrade head
             
-            echo 'Verifying table creation...'
-            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c '\\dt'
-            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c 'SELECT COUNT(*) as table_exists FROM information_schema.tables WHERE table_name = \"photos\";'
-          "
+            echo "Verifying table creation..."
+            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "\dt"
+            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "SELECT COUNT(*) as table_exists FROM information_schema.tables WHERE table_name = '\''photos'\'';"
+          '
 
     - name: Start services
       run: |
