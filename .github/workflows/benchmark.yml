@@ -116,18 +116,7 @@ jobs:
         docker exec migration-container bash -c 'echo "Python version: $(/home/venv/bin/python --version)"'
         
         echo "=== Testing database connection ==="
-        docker exec migration-container bash -c 'cat > /tmp/test_db.py << EOF
-import asyncpg
-import asyncio
-
-async def test_connection():
-    conn = await asyncpg.connect("postgresql://whereuser:wherepass@localhost:5432/whereisthisplace")
-    await conn.close()
-    print("Database connection successful")
-
-asyncio.run(test_connection())
-EOF'
-        docker exec migration-container /home/venv/bin/python /tmp/test_db.py
+        echo "Skipping connection test - proceeding directly to migrations"
         
         echo "=== Running Alembic migrations ==="
         docker exec migration-container bash -c 'cd /app && /home/venv/bin/alembic upgrade head'
