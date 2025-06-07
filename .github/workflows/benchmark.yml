@@ -10,14 +10,6 @@ on:
       - "scripts/benchmark.py"
       - "datasets/**"
       - ".github/workflows/benchmark.yml"
-  pull_request:
-    branches: [main]
-    paths:
-      - "api/**"
-      - "ml/**"
-      - "models/**"
-      - "scripts/benchmark.py"
-      - "datasets/**"
   workflow_dispatch:  # manual trigger
 
 env:
@@ -102,9 +94,10 @@ jobs:
 
     - name: Run database migrations
       run: |
-        # Start a temporary container to run migrations
+        # Start a container in the background for migrations
         echo "Starting migration container..."
-        timeout 300 docker run --rm \
+        docker run -d \
+          --name migration-container \
           --network host \
           -e DATABASE_URL="postgresql://whereuser:wherepass@localhost:5432/whereisthisplace" \
           -e PGUSER="whereuser" \
@@ -113,23 +106,28 @@ jobs:
           -e PGPORT="5432" \
           -e PGDATABASE="whereisthisplace" \
           where-backend-test:latest \
-          bash -c "
-            echo '=== Migration Debug Info ==='
-            echo 'DATABASE_URL: '\$DATABASE_URL
-            echo 'PGUSER: '\$PGUSER
-            echo 'Current user: '\$(whoami)
-            echo 'Python version: '\$(/home/venv/bin/python --version)
-            
-            echo '=== Testing database connection ==='
-            /home/venv/bin/python -c 'import asyncpg, asyncio; asyncio.run(asyncpg.connect(\"'\$DATABASE_URL'\").close())' && echo 'Database connection successful' || (echo 'Database connection failed' && exit 1)
-            
-            echo '=== Running Alembic migrations ==='
-            cd /app && /home/venv/bin/alembic upgrade head
-            
-            echo '=== Verifying table creation ==='
-            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c '\dt'
-            PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c 'SELECT COUNT(*) as table_exists FROM information_schema.tables WHERE table_name = '\''photos'\'';'
-          "
+          sleep 300
+        
+        # Run migration commands step by step
+        echo "=== Migration Debug Info ==="
+        docker exec migration-container bash -c 'echo "DATABASE_URL: $DATABASE_URL"'
+        docker exec migration-container bash -c 'echo "PGUSER: $PGUSER"'
+        docker exec migration-container bash -c 'echo "Current user: $(whoami)"'
+        docker exec migration-container bash -c 'echo "Python version: $(/home/venv/bin/python --version)"'
+        
+        echo "=== Testing database connection ==="
+        docker exec migration-container /home/venv/bin/python -c "import asyncpg, asyncio; asyncio.run(asyncpg.connect('postgresql://whereuser:wherepass@localhost:5432/whereisthisplace').close()); print('Database connection successful')"
+        
+        echo "=== Running Alembic migrations ==="
+        docker exec migration-container bash -c 'cd /app && /home/venv/bin/alembic upgrade head'
+        
+        echo "=== Verifying table creation ==="
+        docker exec migration-container bash -c 'PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "\dt"'
+        docker exec migration-container bash -c 'PGPASSWORD=wherepass psql -h localhost -p 5432 -U whereuser -d whereisthisplace -c "SELECT COUNT(*) as table_exists FROM information_schema.tables WHERE table_name = '\''photos'\'';"'
+        
+        # Clean up migration container
+        docker stop migration-container
+        docker rm migration-container
 
     - name: Start services
       run: |
