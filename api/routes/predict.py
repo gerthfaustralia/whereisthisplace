@@ -92,7 +92,6 @@ openai = _openai
 
 # Configure OpenAI credentials from environment if available
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
 
 router = APIRouter()
@@ -161,7 +160,9 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_
             if use_openai and OPENAI_API_KEY:
                 try:
                     b64 = base64.b64encode(image_data).decode()
-                    resp = openai.ChatCompletion.create(
+                    # Using modern OpenAI v1.x syntax
+                    client = openai.OpenAI(api_key=OPENAI_API_KEY)
+                    resp = client.chat.completions.create(
                         model="gpt-4o",
                         messages=[{
                             "role": "user",
@@ -176,8 +177,9 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_
                                 },
                             ],
                         }],
+                        max_tokens=100
                     )
-                    place = resp["choices"][0]["message"]["content"]
+                    place = resp.choices[0].message.content
                     g = requests.get(
                         "https://nominatim.openstreetmap.org/search",
                         params={"q": place, "format": "json", "limit": 1},
@@ -198,11 +200,11 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_
                 except Exception as openai_error:
                     # If OpenAI fails, continue with model prediction but add warning
                     if hasattr(geo, 'bias_warning'):
-                        #geo.bias_warning += f" (OpenAI fallback failed: {str(openai_error)})"
                         if geo.bias_warning is None:
                             geo.bias_warning = f"OpenAI fallback failed: {str(openai_error)}"
                         else:
                             geo.bias_warning += f" (OpenAI fallback failed: {str(openai_error)})"
+
             # Prepare response with enhanced information
             prediction_dict = asdict(geo)
             
