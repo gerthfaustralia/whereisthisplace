@@ -92,18 +92,8 @@ openai = _openai
 
 # Configure OpenAI credentials from environment if available
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-if OPENAI_API_KEY:
-    try:
-        openai.api_key = OPENAI_API_KEY
-    except Exception:
-        pass
 
 OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL")
-if OPENAI_BASE_URL:
-    try:
-        openai.base_url = OPENAI_BASE_URL
-    except Exception:
-        pass
 
 router = APIRouter()
 
@@ -208,8 +198,11 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_
                 except Exception as openai_error:
                     # If OpenAI fails, continue with model prediction but add warning
                     if hasattr(geo, 'bias_warning'):
-                        geo.bias_warning += f" (OpenAI fallback failed: {str(openai_error)})"
-
+                        #geo.bias_warning += f" (OpenAI fallback failed: {str(openai_error)})"
+                        if geo.bias_warning is None:
+                            geo.bias_warning = f"OpenAI fallback failed: {str(openai_error)}"
+                        else:
+                            geo.bias_warning += f" (OpenAI fallback failed: {str(openai_error)})"
             # Prepare response with enhanced information
             prediction_dict = asdict(geo)
             

@@ -1,0 +1,16 @@
+{
+  "target_bbox": [
+    31.13,
+    29.95,
+    31.35,
+    30.15
+  ],
+  "bbox_string": "31.13,29.95,31.35,30.15",
+  "requested_images": 100,
+  "api_results": 1000,
+  "bbox_filtered": 100,
+  "successfully_downloaded": 100,
+  "download_errors": 0,
+  "filtering_effectiveness": "10.0%",
+  "download_time": 16.95548701286316
+}

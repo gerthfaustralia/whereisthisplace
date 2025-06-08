@@ -23,6 +23,7 @@ RUN echo "Cache bust: $CACHEBUST" && \
     /home/venv/bin/pip install --no-cache-dir uvicorn[standard] fastapi && \
     /home/venv/bin/pip install --no-cache-dir asyncpg psycopg2-binary sqlalchemy geoalchemy2 pgvector[sqlalchemy] && \
     /home/venv/bin/pip install --no-cache-dir numpy python-dotenv pydantic-settings requests python-multipart alembic httpx && \
+    /home/venv/bin/pip install --no-cache-dir "openai>=1.0.0" && \    
     echo "Installed packages:" && \
     /home/venv/bin/pip list | grep -E "(uvicorn|fastapi|asyncpg|psycopg2|sqlalchemy)" && \
     echo "Python path check:" && \
