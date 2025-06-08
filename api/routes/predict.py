@@ -169,7 +169,7 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_
                             "content": [
                                 {
                                     "type": "text",
-                                    "text": "Where was this photo taken? Reply with a location name.",
+                                    "text": "Where was this photo taken? Reply with ONLY the city and country name, like 'Paris, France' or 'New York, USA'. If you cannot identify the location, reply with 'Unknown'.",
                                 },
                                 {
                                     "type": "image_url",
@@ -177,9 +177,13 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_
                                 },
                             ],
                         }],
-                        max_tokens=100
+                        max_tokens=50
                     )
-                    place = resp.choices[0].message.content
+                    place = resp.choices[0].message.content.strip()
+                    
+                    # Skip if OpenAI couldn't identify the location
+                    if any(phrase in place.lower() for phrase in ['unknown', 'i cannot', 'i\'m sorry', 'unable to determine']):
+                        raise Exception("OpenAI could not identify location")
                     g = requests.get(
                         "https://nominatim.openstreetmap.org/search",
                         params={"q": place, "format": "json", "limit": 1},
