@@ -14,7 +14,7 @@ def test_openai_flow():
     client = openai.OpenAI(api_key=api_key)
     
     # Read the test image
-    image_path = 'datasets/mapillary_cairo/mapillary_2395120600634439_000000.jpg'
+    image_path = 'test_image.jpg'
     try:
         with open(image_path, 'rb') as f:
             image_data = f.read()
