@@ -183,6 +183,7 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_
                     g = requests.get(
                         "https://nominatim.openstreetmap.org/search",
                         params={"q": place, "format": "json", "limit": 1},
+                                                headers={"User-Agent": "WhereIsThisPlace/1.0 (https://github.com/whereisthisplace)"},
                         timeout=10,
                     )
                     if g.status_code == 200:
