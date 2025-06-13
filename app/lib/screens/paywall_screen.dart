@@ -73,7 +73,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
           });
         }
 
-        return Scaffold(
+    return Scaffold(
           appBar: AppBar(
             title: const Text('Unlock Pro Features'),
             elevation: 0,
@@ -82,7 +82,7 @@ class _PaywallScreenState extends State<PaywallScreen> {
             padding: const EdgeInsets.all(24.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
+                children: [
                 const SizedBox(height: 20),
                 
                 // App Icon/Logo
