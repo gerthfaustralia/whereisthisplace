@@ -1,11 +1,8 @@
 import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter/material.dart';
-import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/pro_provider.dart';
-
-const _kProduct = 'pro_monthly';
 
 class PaywallScreen extends StatefulWidget {
   const PaywallScreen({super.key});
@@ -15,69 +12,337 @@ class PaywallScreen extends StatefulWidget {
 }
 
 class _PaywallScreenState extends State<PaywallScreen> {
-  ProductDetails? _product;
-  late final Stream<List<PurchaseDetails>> _stream;
+  bool _isLoading = false;
+  String? _errorMessage;
 
-  @override
-  void initState() {
-    super.initState();
-    _stream = InAppPurchase.instance.purchaseStream;
-    _loadProduct();
-    _stream.listen(_listenToPurchases);
-  }
+  Future<void> _buyPro() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-  Future<void> _loadProduct() async {
-    final available = await InAppPurchase.instance.isAvailable();
-    if (!available) return;
-    final response = await InAppPurchase.instance.queryProductDetails({_kProduct});
-    if (response.error == null && response.productDetails.isNotEmpty) {
+    try {
+      await context.read<ProProvider>().buyProSubscription();
+      
+      if (kDebugMode) {
+        // In debug mode, the purchase succeeds immediately
+        // Pop the screen after a short delay to show the success
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          Navigator.of(context).pop();
+        }
+      }
+    } catch (e) {
       setState(() {
-        _product = response.productDetails.first;
+        _errorMessage = 'Purchase failed: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
       });
     }
   }
 
-  void _listenToPurchases(List<PurchaseDetails> purchases) {
-    for (var p in purchases) {
-      if (p.productID == _kProduct && p.status == PurchaseStatus.purchased) {
-        context.read<ProProvider>().setPro(true);
-      }
-    }
-  }
+  Future<void> _restorePurchases() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
 
-  void _buy() {
-    final product = _product;
-    if (product == null) return;
-    final purchaseParam = PurchaseParam(productDetails: product);
-    if (Theme.of(context).platform == TargetPlatform.android) {
-      InAppPurchase.instance.buyNonConsumable(purchaseParam: purchaseParam);
-    } else {
-      InAppPurchase.instance.buy(purchaseParam: purchaseParam);
-    }
-
-    if (kDebugMode) {
-      // Stub purchase success in debug builds
-      context.read<ProProvider>().setPro(true);
+    try {
+      await context.read<ProProvider>().restorePurchases();
+    } catch (e) {
+      setState(() {
+        _errorMessage = 'Restore failed: $e';
+      });
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Unlock Pro')),
-      body: Center(
-        child: _product == null
-            ? const CircularProgressIndicator()
-            : Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(_product!.title, style: Theme.of(context).textTheme.headlineSmall),
-                  const SizedBox(height: 8),
-                  Text(_product!.price),
+    return Consumer<ProProvider>(
+      builder: (context, proProvider, _) {
+        // If user becomes Pro, close the paywall
+        if (proProvider.isPro) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            Navigator.of(context).pop();
+          });
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Unlock Pro Features'),
+            elevation: 0,
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                const SizedBox(height: 20),
+                
+                // App Icon/Logo
+                Container(
+                  width: 100,
+                  height: 100,
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColor,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Icon(
+                    Icons.location_on,
+                    size: 60,
+                    color: Colors.white,
+                  ),
+                ),
+                
+                const SizedBox(height: 24),
+                
+                // Title
+                Text(
+                  'WhereIsThisPlace Pro',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Description
+                Text(
+                  'Unlock premium features to get the most out of your photo geolocation experience.',
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                const SizedBox(height: 32),
+                
+                // Features List
+                _buildFeaturesList(),
+                
+                const SizedBox(height: 32),
+                
+                // Pricing Card
+                _buildPricingCard(proProvider),
+                
+                const SizedBox(height: 24),
+                
+                // Error Message
+                if (_errorMessage != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red[200]!),
+                    ),
+                    child: Text(
+                      _errorMessage!,
+                      style: TextStyle(color: Colors.red[700]),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                   const SizedBox(height: 16),
-                  ElevatedButton(onPressed: _buy, child: const Text('Buy')),
                 ],
+                
+                // Purchase Button
+                SizedBox(
+                  width: double.infinity,
+                  height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _buyPro,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            ),
+                          )
+                        : Text(
+                            'Subscribe for ${proProvider.proProductPrice}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                  ),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Restore Purchases Button
+                TextButton(
+                  onPressed: _isLoading ? null : _restorePurchases,
+                  child: const Text('Restore Purchases'),
+                ),
+                
+                const SizedBox(height: 16),
+                
+                // Terms and Privacy
+                Text(
+                  'By subscribing, you agree to our Terms of Service and Privacy Policy. Subscription automatically renews unless canceled.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Colors.grey[500],
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                
+                if (kDebugMode) ...[
+                  const SizedBox(height: 20),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.orange[200]!),
+                    ),
+                    child: Text(
+                      'DEBUG MODE: Purchase will be simulated',
+                      style: TextStyle(
+                        color: Colors.orange[700],
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildFeaturesList() {
+    const features = [
+      {
+        'icon': Icons.batch_prediction,
+        'title': 'Batch Processing',
+        'description': 'Process multiple photos at once',
+      },
+      {
+        'icon': Icons.high_quality,
+        'title': 'Enhanced Accuracy',
+        'description': 'Access to premium AI models',
+      },
+      {
+        'icon': Icons.cloud_upload,
+        'title': 'Cloud Sync',
+        'description': 'Sync your results across devices',
+      },
+      {
+        'icon': Icons.support_agent,
+        'title': 'Priority Support',
+        'description': 'Get help when you need it',
+      },
+    ];
+
+    return Column(
+      children: features.map((feature) => 
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).primaryColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(
+                  feature['icon'] as IconData,
+                  color: Theme.of(context).primaryColor,
+                ),
               ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      feature['title'] as String,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    Text(
+                      feature['description'] as String,
+                      style: TextStyle(
+                        color: Colors.grey[600],
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ).toList(),
+    );
+  }
+
+  Widget _buildPricingCard(ProProvider proProvider) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Theme.of(context).primaryColor,
+            Theme.of(context).primaryColor.withOpacity(0.8),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
+          const Text(
+            'Pro Monthly',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 24,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            proProvider.proProductPrice,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 36,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Text(
+            'per month',
+            style: TextStyle(
+              color: Colors.white70,
+              fontSize: 16,
+            ),
+          ),
+        ],
       ),
     );
   }
