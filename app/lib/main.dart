@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'providers/geo_provider.dart';
 import 'providers/locale_provider.dart';
 import 'providers/settings_provider.dart';
+import 'providers/pro_provider.dart';
 import 'screens/home_screen.dart';      // ← this is already in the repo
 import 'l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -20,6 +21,7 @@ class WhereApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => GeoProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
         ChangeNotifierProvider(create: (_) => LocaleProvider()),
+        ChangeNotifierProvider(create: (_) => ProProvider()),
       ],
       child: Consumer<LocaleProvider>(
         builder: (context, localeProvider, _) {

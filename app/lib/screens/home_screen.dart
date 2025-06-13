@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/geo_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/pro_provider.dart';
+import 'paywall_screen.dart';
 import 'result.dart';
 import 'settings.dart';
 import '../l10n/app_localizations.dart';
@@ -88,6 +90,16 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _batchFeature() {
+    showDialog(
+      context: context,
+      builder: (_) => const AlertDialog(
+        title: Text('Batch feature'),
+        content: Text('This feature is available in Pro version.'),
+      ),
+    );
+  }
+
   Widget _buildImagePreview() {
     if (_image == null) {
       return const Text('No image selected');
@@ -159,6 +171,27 @@ class _HomeScreenState extends State<HomeScreen> {
             ElevatedButton(
               onPressed: _image == null || _loading ? null : _locate,
               child: const Text('Locate'),
+            ),
+            const SizedBox(height: 16),
+            Consumer<ProProvider>(
+              builder: (context, pro, _) {
+                if (pro.isPro) {
+                  return ElevatedButton(
+                    onPressed: _batchFeature,
+                    child: const Text('Batch'),
+                  );
+                }
+                return ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PaywallScreen(),
+                      ),
+                    );
+                  },
+                  child: const Text('Unlock Pro'),
+                );
+              },
             ),
             if (_loading) ...[
               const SizedBox(height: 16),
