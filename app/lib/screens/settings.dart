@@ -62,6 +62,15 @@ class SettingsScreen extends StatelessWidget {
             trailing: const Icon(Icons.open_in_new),
             onTap: _openPolicy,
           ),
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(
+              child: Text(
+                '© Mapbox, © Mapillary CC-BY-SA 4.0',
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
         ],
       ),
     );
