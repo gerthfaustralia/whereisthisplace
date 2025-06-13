@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 # Configuration
-BASE_URL = "http://52.28.72.57"  # Your public IP
+BASE_URL = "https://api.wheretheplaceis.com"  # Your public API
 IMAGE_FILE = "eiffel.jpg"  # Test image
 
 def test_health_endpoint():

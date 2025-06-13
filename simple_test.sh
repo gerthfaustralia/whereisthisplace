@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Simple API Test - Single Request
-BASE_URL="http://52.28.72.57:8000"
+BASE_URL="https://api.wheretheplaceis.com"
 IMAGE_FILE="eiffel.jpg"
 
 echo "🚀 Testing WhereIsThisPlace API"

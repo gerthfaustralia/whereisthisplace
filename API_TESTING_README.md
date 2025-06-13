@@ -55,7 +55,7 @@ Before running tests, update the `BASE_URL` in each script:
 BASE_URL="http://localhost:8000"
 
 # For your deployed API  
-BASE_URL="http://52.28.72.57:8000"
+BASE_URL="https://api.wheretheplaceis.com"
 ```
 
 ## 📊 Understanding Your API Results

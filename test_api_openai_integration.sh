@@ -3,7 +3,7 @@
 # Test WhereIsThisPlace API OpenAI Integration
 # This tests if the deployed API can use OpenAI fallback
 
-API_URL="http://52.28.72.57:8000"  # Your deployed API
+API_URL="https://api.wheretheplaceis.com"  # Your deployed API
 IMAGE_FILE="eiffel.jpg"
 
 echo "🤖 Testing WhereIsThisPlace API OpenAI Integration"
