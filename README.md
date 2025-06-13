@@ -175,6 +175,23 @@ Run it after starting the API:
 python scripts/benchmark.py --api-url http://localhost:8000
 ```
 
+## Privacy & Data Protection
+
+WhereIsThisPlace is designed with privacy in mind:
+
+- **📸 Automatic Photo Deletion**: All uploaded photos are deleted within 60 seconds
+- **🤖 Opt-in AI Features**: LLM descriptions are disabled by default and require user consent
+- **🔒 Data Minimization**: We only store anonymized prediction metadata (lat/lon/confidence)
+- **📋 Transparency**: Full privacy policy available at [https://felixgru.github.io/whereisthisplace/](https://felixgru.github.io/whereisthisplace/)
+
+### App Store Compliance
+
+The app includes all required privacy policy links and disclosures for:
+- ✅ iOS App Store submission
+- ✅ Google Play Store submission
+- ✅ Data deletion timelines (< 60 seconds)
+- ✅ Optional LLM toggle with user consent
+
 ## Contribution Rules
 
 1. Open an issue before major changes.

@@ -11,7 +11,7 @@ class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   static const _policyUrl =
-      'https://YOUR_GITHUB_USERNAME.github.io/whereisthisplace/privacy-policy.html';
+      'https://felixgru.github.io/whereisthisplace/';
 
   void _openPolicy() {
     launchUrl(Uri.parse(_policyUrl));

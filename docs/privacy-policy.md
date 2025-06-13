@@ -17,9 +17,22 @@ This Privacy Policy describes how the WhereIsThisPlace application ("the App") h
 ## Analytics
 - We may collect anonymous usage statistics to improve the App. No personally identifiable information is logged.
 
+## App Store Information
+- **App Name**: WhereIsThisPlace
+- **Developer**: Essential AI
+- **Last Updated**: December 2024
+- **Contact Email**: whereisthisplace@essentialai.com
+
+## Your Rights
+You have the right to:
+- Request deletion of your data (though photos are automatically deleted within 60 seconds)
+- Opt out of the LLM feature at any time through app settings
+- Contact us with any privacy concerns
+
 ## Contact
-For questions about this Privacy Policy, please open an issue in the repository or contact the developers at `whereisthisplace@example.com`.
+For questions about this Privacy Policy, please open an issue in the repository or contact the developers at `whereisthisplace@essentialai.com`.
 
 ---
 
-This document is written in Markdown. After merging it into your repository, enable GitHub Pages or publish it via Notion to generate a publicly reachable link required by the app stores.
+**Privacy Policy URL**: https://felixgru.github.io/whereisthisplace/
+This privacy policy is publicly accessible and meets app store requirements for iOS App Store and Google Play Store submissions.
