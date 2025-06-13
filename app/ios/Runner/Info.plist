@@ -33,7 +33,7 @@
 	<key>UIMainStoryboardFile</key>
 	<string>Main</string>
 	<key>NSPhotoLibraryUsageDescription</key>
-	<string>This app needs access to your photo library so you can select an image to find its location.</string>
+	<string>This app needs access to your photos so we can locate them.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>This app needs access to your camera so you can take a new photo to find its location.</string>
 	<key>NSMicrophoneUsageDescription</key>
@@ -70,9 +70,10 @@
 	
 	<!-- Location permissions -->
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>This app needs access to location to show your position on the map.</string>
-	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>This app needs access to location to show your position on the map.</string>
+	<string>Optional: Used only if you enable AR walk-to-spot navigation.</string>
+	<!-- NSLocationAlwaysAndWhenInUseUsageDescription removed - not needed unless tracking in background -->
+	<!-- <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>This app needs access to location to show your position on the map.</string> -->
 	
 	<!-- Mapbox Access Token -->
 	<key>MBXAccessToken</key>
