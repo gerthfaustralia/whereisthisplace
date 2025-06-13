@@ -4,7 +4,7 @@
 # Tests the new bias detection and enhanced API response structure
 
 # Configuration
-BASE_URL="http://52.28.72.57:8000"
+BASE_URL="https://api.wheretheplaceis.com"
 IMAGE_FILE="eiffel.jpg"
 
 echo "🚀 Starting Manual API Tests"

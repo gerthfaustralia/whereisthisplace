@@ -91,7 +91,7 @@ cat > $BACKUP_DIR/PRODUCTION_STATE.md << 'EOF'
 
 ## System Overview
 🎯 **Production Geolocation API with GitHub Action CI/CD**
-🌐 **Public Endpoint**: http://52.28.72.57:8000
+🌐 **Public Endpoint**: https://api.wheretheplaceis.com
 🚀 **CI/CD Pipeline**: GitHub → Action → ECR → EC2 → Production
 
 ## Deployment Information
@@ -109,8 +109,8 @@ cat >> $BACKUP_DIR/PRODUCTION_STATE.md << 'EOF'
 - ✅ **Geographic Search**: PostGIS with distance calculations
 - ✅ **ML Predictions**: TorchServe model finding closest matches from reference data
 - ✅ **Reference Database**: 3 photos (Eiffel Tower: Paris, NYC Skyline, Basic test)
-- ✅ **Public API**: http://52.28.72.57:8000/predict working
-- ✅ **Health Endpoint**: http://52.28.72.57:8000/health operational
+- ✅ **Public API**: https://api.wheretheplaceis.com/predict working
+- ✅ **Health Endpoint**: https://api.wheretheplaceis.com/health operational
 - ✅ **GitHub Action Deployment**: Automated builds and deployments
 - ✅ **ECR Integration**: Automated image storage and versioning
 
@@ -140,10 +140,10 @@ cat >> $BACKUP_DIR/PRODUCTION_STATE.md << 'EOF'
 ## Test Commands
 ```bash
 # Health check
-curl -s http://52.28.72.57:8000/health | jq .
+curl -s https://api.wheretheplaceis.com/health | jq .
 
 # Geolocation prediction (upload eiffel.jpg)
-curl -s -X POST -F "photo=@eiffel.jpg" http://52.28.72.57:8000/predict | jq .
+curl -s -X POST -F "photo=@eiffel.jpg" https://api.wheretheplaceis.com/predict | jq .
 ```
 
 ## CI/CD Workflow
@@ -151,7 +151,7 @@ curl -s -X POST -F "photo=@eiffel.jpg" http://52.28.72.57:8000/predict | jq .
 2. **GitHub Action**: Automatically builds Docker image
 3. **ECR Push**: Image pushed to 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
 4. **EC2 Deploy**: `docker pull` + `docker-compose up -d`
-5. **Production**: Live API at http://52.28.72.57:8000
+5. **Production**: Live API at https://api.wheretheplaceis.com
 
 EOF
 
@@ -166,7 +166,7 @@ git add .
 git commit -m "PRODUCTION STATE: GitHub Action CI/CD system operational
 
 🎯 PRODUCTION SYSTEM CONFIRMED:
-- Public API: http://52.28.72.57:8000 ✅
+- Public API: https://api.wheretheplaceis.com ✅
 - Vector similarity search with reference database ✅
 - GitHub Action CI/CD: Auto-build and deploy ✅
 - ECR Image: $ECR_IMAGE ✅

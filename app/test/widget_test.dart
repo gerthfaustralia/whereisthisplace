@@ -11,6 +11,7 @@ import 'package:app/models/engine.dart';
 import 'package:app/providers/geo_provider.dart';
 import 'package:app/providers/locale_provider.dart';
 import 'package:app/providers/settings_provider.dart';
+import 'package:app/providers/pro_provider.dart';
 import 'package:app/l10n/app_localizations.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
@@ -36,6 +37,8 @@ void main() {
         providers: [
           ChangeNotifierProvider(create: (_) => GeoProvider(_fakeLocate)),
           ChangeNotifierProvider(create: (_) => SettingsProvider()),
+          ChangeNotifierProvider(create: (_) => LocaleProvider()),
+          ChangeNotifierProvider(create: (_) => ProProvider()),
         ],
         child: MaterialApp(
           localizationsDelegates: const [

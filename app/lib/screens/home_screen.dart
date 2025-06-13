@@ -7,6 +7,8 @@ import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../providers/geo_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/pro_provider.dart';
+import 'paywall_screen.dart';
 import 'result.dart';
 import 'settings.dart';
 import '../l10n/app_localizations.dart';
@@ -88,6 +90,36 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _batchFeature() {
+    if (context.read<ProProvider>().isPro) {
+      // Pro users can access batch feature
+      showDialog(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Batch Processing'),
+          content: const Text('Batch processing feature is now available! This would allow you to process multiple photos at once.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      // Non-pro users see paywall
+      showDialog(
+        context: context,
+        builder: (_) => const AlertDialog(
+          title: Text('Batch feature'),
+          content: Text('This feature is available in Pro version.'),
+        ),
+      );
+    }
+  }
+
+
+
   Widget _buildImagePreview() {
     if (_image == null) {
       return const Text('No image selected');
@@ -159,6 +191,51 @@ class _HomeScreenState extends State<HomeScreen> {
             ElevatedButton(
               onPressed: _image == null || _loading ? null : _locate,
               child: const Text('Locate'),
+            ),
+            const SizedBox(height: 16),
+            Consumer<ProProvider>(
+              builder: (context, pro, _) {
+                if (pro.isPro) {
+                  // Show batch button for Pro users
+                  return ElevatedButton(
+                    onPressed: _batchFeature,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.batch_prediction),
+                        SizedBox(width: 8),
+                        Text('Batch Process'),
+                      ],
+                    ),
+                  );
+                }
+                // Show "Unlock Pro" button for non-Pro users
+                return ElevatedButton(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PaywallScreen(),
+                      ),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Theme.of(context).primaryColor,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.lock),
+                      SizedBox(width: 8),
+                      Text('Unlock Pro'),
+                    ],
+                  ),
+                );
+              },
             ),
             if (_loading) ...[
               const SizedBox(height: 16),
