@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../providers/geo_provider.dart';
 import '../providers/settings_provider.dart';
 import 'result.dart';
@@ -96,12 +97,41 @@ class _HomeScreenState extends State<HomeScreen> {
         : Image.file(File(_image!.path), height: 200);
   }
 
+  void _showAboutDialog(BuildContext context) {
+    showAboutDialog(
+      context: context,
+      applicationName: 'WhereIsThisPlace',
+      applicationVersion: '1.0.0',
+      applicationIcon: const Icon(Icons.location_on, size: 48),
+      children: [
+        const Text('AI-powered photo geolocation app that helps you discover where photos were taken.'),
+        const SizedBox(height: 16),
+        const Text('Key Features:'),
+        const Text('• Photos deleted within 60 seconds'),
+        const Text('• Optional AI descriptions (opt-in)'),
+        const Text('• Privacy-focused design'),
+        const SizedBox(height: 16),
+        TextButton.icon(
+          icon: const Icon(Icons.privacy_tip),
+          label: const Text('Privacy Policy'),
+          onPressed: () {
+            launchUrl(Uri.parse('https://felixgru.github.io/whereisthisplace/'));
+          },
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text(AppLocalizations.of(context).home),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.info_outline),
+            onPressed: () => _showAboutDialog(context),
+          ),
           IconButton(
             key: const Key('settings_button'),
             icon: const Icon(Icons.settings),

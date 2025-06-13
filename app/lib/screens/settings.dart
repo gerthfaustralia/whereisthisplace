@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../providers/settings_provider.dart';
 import '../providers/locale_provider.dart';
@@ -8,6 +9,13 @@ import '../models/engine.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
+
+  static const _policyUrl =
+      'https://felixgru.github.io/whereisthisplace/';
+
+  void _openPolicy() {
+    launchUrl(Uri.parse(_policyUrl));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -48,6 +56,11 @@ class SettingsScreen extends StatelessWidget {
                 if (locale != null) localeProvider.setLocale(locale);
               },
             ),
+          ),
+          ListTile(
+            title: Text(AppLocalizations.of(context).privacyPolicy),
+            trailing: const Icon(Icons.open_in_new),
+            onTap: _openPolicy,
           ),
         ],
       ),
