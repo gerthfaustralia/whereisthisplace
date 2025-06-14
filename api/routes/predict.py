@@ -116,7 +116,14 @@ class GeoResult:
 
 @router.post("/predict")
 async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_pool=Depends(get_db_pool)):
-    """Make prediction using the uploaded photo with bias detection and fallback."""
+    """
+    Make prediction using the uploaded photo with bias detection and fallback.
+    
+    FEATURE BRANCH: OpenAI-Default Mode
+    - OpenAI is now the default prediction method
+    - Model is only used when mode="model" is explicitly specified
+    - This allows testing OpenAI responses while the model/database matures
+    """
     try:
         allowed_types = ['image/jpeg', 'image/jpg', 'image/png']
         if photo.content_type not in allowed_types:
@@ -154,10 +161,11 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_
             # Apply bias detection
             geo = detect_geographic_bias(geo, photo.filename)
             
-            # Check if we should use OpenAI fallback
-            use_openai = (mode == "openai") or should_use_openai_fallback(geo, photo.filename)
+            # FEATURE BRANCH: OpenAI is now the default mode
+            # Always use OpenAI unless explicitly disabled with mode="model"
+            use_openai = (mode != "model") and OPENAI_API_KEY
             
-            if use_openai and OPENAI_API_KEY:
+            if use_openai:
                 try:
                     b64 = base64.b64encode(image_data).decode()
                     # Using modern OpenAI v1.x syntax
@@ -200,15 +208,17 @@ async def predict(photo: UploadFile = File(...), mode: Optional[str] = None, db_
                                 lon=float(data[0]["lon"]),
                                 score=0.95,  # High confidence for OpenAI
                                 source="openai",
-                                bias_warning=getattr(original_geo, 'bias_warning', None)
+                                bias_warning=getattr(original_geo, 'bias_warning', None),
+                                original_score=original_geo.score  # Preserve model score for comparison
                             )
                 except Exception as openai_error:
                     # If OpenAI fails, continue with model prediction but add warning
-                    if hasattr(geo, 'bias_warning'):
-                        if geo.bias_warning is None:
-                            geo.bias_warning = f"OpenAI fallback failed: {str(openai_error)}"
-                        else:
-                            geo.bias_warning += f" (OpenAI fallback failed: {str(openai_error)})"
+                    print(f"OpenAI request failed: {str(openai_error)}")
+                    # Add failure warning to the model prediction
+                    if hasattr(geo, 'bias_warning') and geo.bias_warning:
+                        geo.bias_warning += f" (OpenAI unavailable: {str(openai_error)})"
+                    else:
+                        geo.bias_warning = f"OpenAI unavailable: {str(openai_error)}"
 
             # Prepare response with enhanced information
             prediction_dict = asdict(geo)
