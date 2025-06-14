@@ -34,7 +34,7 @@ echo "🐳 Step 2/7: Capturing Docker image references..."
 # Get current deployment info
 RUNNING_CONTAINER_ID=$(docker ps --filter "name=where-backend-gpu" --format "{{.ID}}")
 RUNNING_IMAGE=$(docker ps --filter "name=where-backend-gpu" --format "{{.Image}}")
-ECR_IMAGE="726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest"
+ECR_IMAGE="726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai:latest"
 ECR_DIGEST=$(docker images --digests $ECR_IMAGE --format "{{.Digest}}")
 
 # Create image reference file
@@ -53,7 +53,7 @@ cat > $BACKUP_DIR/DOCKER_IMAGES_INFO.md << EOF
 docker pull $ECR_IMAGE
 
 # Or pull by specific digest for exact reproduction
-docker pull 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend@$ECR_DIGEST
+docker pull 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai@$ECR_DIGEST
 
 # PostgreSQL image
 docker pull pgvector/pgvector:pg16
@@ -149,7 +149,7 @@ curl -s -X POST -F "photo=@eiffel.jpg" https://api.wheretheplaceis.com/predict |
 ## CI/CD Workflow
 1. **Code Push**: Developer pushes to GitHub main branch
 2. **GitHub Action**: Automatically builds Docker image
-3. **ECR Push**: Image pushed to 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
+3. **ECR Push**: Image pushed to 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai:latest
 4. **EC2 Deploy**: `docker pull` + `docker-compose up -d`
 5. **Production**: Live API at https://api.wheretheplaceis.com
 
@@ -189,18 +189,18 @@ echo "✅ Git backup completed"
 echo "☁️ Step 6/7: Creating production tags in ECR..."
 
 # Tag the current working production image with backup-specific tags
-docker tag $ECR_IMAGE 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:production-backup-$BACKUP_TIMESTAMP
-docker tag $ECR_IMAGE 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:stable-production
-docker tag $ECR_IMAGE 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:github-action-verified
+docker tag $ECR_IMAGE 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai:production-backup-$BACKUP_TIMESTAMP
+docker tag $ECR_IMAGE 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai:stable-production
+docker tag $ECR_IMAGE 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai:github-action-verified
 
 # Login and push production tags (if AWS credentials available)
 if aws sts get-caller-identity > /dev/null 2>&1; then
     aws ecr get-login-password --region eu-central-1 | docker login --username AWS --password-stdin 726580147864.dkr.ecr.eu-central-1.amazonaws.com
     
     echo "📤 Pushing production tags to ECR..."
-    docker push 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:production-backup-$BACKUP_TIMESTAMP
-    docker push 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:stable-production
-    docker push 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:github-action-verified
+    docker push 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai:production-backup-$BACKUP_TIMESTAMP
+    docker push 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai:stable-production
+    docker push 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai:github-action-verified
     
     echo "✅ Production tags pushed to ECR:"
     echo "   📦 :production-backup-$BACKUP_TIMESTAMP (timestamped backup)"

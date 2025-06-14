@@ -12,7 +12,7 @@ on:
 
 env:
   AWS_REGION: eu-central-1
-  IMAGE_NAME: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend
+  IMAGE_NAME: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend-openai
 
 jobs:
   build:
