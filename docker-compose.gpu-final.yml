@@ -31,8 +31,8 @@ services:
       - whereisthisplace-network
 
   backend:
-    image: 726580147864.dkr.ecr.eu-central-1.amazonaws.com/where-backend:latest
-    container_name: where-backend-gpu
+    image: where-backend-openai:latest
+    container_name: where-backend-openai-gpu
     runtime: nvidia
     environment:
       NVIDIA_VISIBLE_DEVICES: all
@@ -43,6 +43,8 @@ services:
       PYTHONPATH: /app
       TORCHSERVE_CONFIG_FILE: /app/config/config.properties
       MAPBOX_TOKEN: ${MAPBOX_TOKEN:-YOUR_MAPBOX_TOKEN_HERE}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
     volumes:
       - ./datasets:/app/datasets:rw
       - ./ml:/app/ml:rw
