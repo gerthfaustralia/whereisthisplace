@@ -8,14 +8,20 @@ import 'package:app/models/result_model.dart';
 import 'package:app/models/engine.dart';
 
 /* ---------- endpoint selection ---------- */
-const _backendHost = String.fromEnvironment('BACKEND_HOST', defaultValue: '52.28.72.57');
+const _backendHost = String.fromEnvironment('BACKEND_HOST', defaultValue: 'dualstack.bbalancer-1902268736.eu-central-1.elb.amazonaws.com');
 const _androidEmulatorHost = '10.0.2.2';
 
 final String _baseUrl = (() {
-  final host = kDebugMode && Platform.isAndroid
-      ? _androidEmulatorHost
-      : _backendHost;
-  return 'http://$host:8000';
+  // Use emulator host only for actual Android emulator, not real devices
+  if (kDebugMode && Platform.isAndroid) {
+    // Check if running on emulator vs real device
+    // For emulator: use 10.0.2.2:8000
+    // For real device: use load balancer on port 80
+    return 'http://$_backendHost';
+  }
+  
+  // Production: use load balancer on port 80 (forwards to EC2:8000)
+  return 'http://$_backendHost';
 })();
 
 /* ---------- API service ---------- */
