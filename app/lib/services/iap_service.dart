@@ -65,6 +65,12 @@ class IAPService {
   Future<void> loadProducts() async {
     if (!_isAvailable) return;
     
+    // Skip product loading in debug mode to avoid store setup requirement
+    if (kDebugMode) {
+      debugPrint('🔧 DEBUG: Skipping IAP product loading - using debug mode');
+      return;
+    }
+    
     try {
       const Set<String> productIds = {_kProductId};
       final ProductDetailsResponse response = 
@@ -86,6 +92,13 @@ class IAPService {
   }
 
   Future<void> buyProSubscription() async {
+    // In debug mode, simulate purchase success without actual store interaction
+    if (kDebugMode) {
+      debugPrint('🔧 DEBUG: Simulating Pro subscription purchase');
+      _handleDebugPurchaseSuccess();
+      return;
+    }
+    
     if (!_isAvailable) {
       _errorController.add('In-app purchases are not available.');
       return;
@@ -107,11 +120,6 @@ class IAPService {
         await _inAppPurchase.buyNonConsumable(purchaseParam: purchaseParam);
       } else {
         _errorController.add('Platform not supported for in-app purchases.');
-      }
-      
-      // For debug builds, simulate purchase success
-      if (kDebugMode) {
-        _handleDebugPurchaseSuccess(product);
       }
     } catch (e) {
       _errorController.add('Purchase failed: $e');
@@ -160,11 +168,11 @@ class IAPService {
     }
   }
 
-  void _handleDebugPurchaseSuccess(ProductDetails product) {
+  void _handleDebugPurchaseSuccess() {
     if (kDebugMode) {
       // Create a mock successful purchase for debug mode
       final mockPurchase = _MockPurchaseDetails(
-        productID: product.id,
+        productID: _kProductId,
         status: PurchaseStatus.purchased,
       );
       _purchaseController.add(mockPurchase);

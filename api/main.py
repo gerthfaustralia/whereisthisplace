@@ -35,7 +35,8 @@ app.add_middleware(
 app.add_middleware(EphemeralUploadMiddleware)
 
 # Configure rate limiting based on environment
-# For benchmarking, we need much higher limits
+# Updated: Higher limits for production to handle Apple security scanning
+# Default: 10 requests/24hrs → Production: 1000 requests/1hr (via env vars)
 rate_limit = int(os.getenv('RATE_LIMIT_REQUESTS', '10'))
 rate_period = int(os.getenv('RATE_LIMIT_PERIOD', '86400'))  # 24 hours default
 app.add_middleware(RateLimitMiddleware, limit=rate_limit, period=rate_period)
